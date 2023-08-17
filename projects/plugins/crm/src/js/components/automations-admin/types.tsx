@@ -26,7 +26,11 @@ export type Workflow = {
 	description: string;
 	category: Category;
 	triggers: Trigger[];
+<<<<<<< HEAD
 	initial_step: Step[];
+=======
+	initial_step: Step;
+>>>>>>> 715734e6bc (Add Bulk Workflow action component)
 	active: boolean;
 	version: number;
 	added: string;
