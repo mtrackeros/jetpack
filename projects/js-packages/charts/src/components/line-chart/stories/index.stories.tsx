@@ -26,6 +26,8 @@ Default.args = {
 	height: 300,
 	margin: { top: 20, right: 20, bottom: 30, left: 40 },
 	data: sampleData,
+	showLegend: false,
+	legendOrientation: 'horizontal',
 };
 
 // Story with single data series
@@ -40,10 +42,7 @@ SingleSeries.args = {
 // Story without tooltip
 export const WithoutTooltip = Template.bind( {} );
 WithoutTooltip.args = {
-	width: 500,
-	height: 300,
-	margin: { top: 20, right: 20, bottom: 30, left: 40 },
-	data: sampleData,
+	...Default.args,
 	withTooltips: false,
 };
 
@@ -54,4 +53,18 @@ CustomDimensions.args = {
 	height: 400,
 	margin: { top: 20, right: 20, bottom: 30, left: 40 },
 	data: sampleData,
+};
+
+// Story with horizontal legend
+export const WithLegend = Template.bind( {} );
+WithLegend.args = {
+	...Default.args,
+};
+
+// Story with vertical legend
+export const WithVerticalLegend = Template.bind( {} );
+WithVerticalLegend.args = {
+	...Default.args,
+	showLegend: true,
+	legendOrientation: 'vertical',
 };
