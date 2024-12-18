@@ -24,7 +24,6 @@ export const Default = Template.bind( {} );
 Default.args = {
 	width: 500,
 	height: 300,
-	margin: { top: 20, right: 20, bottom: 30, left: 40 },
 	data: sampleData,
 	showLegend: false,
 	legendOrientation: 'horizontal',
@@ -35,7 +34,6 @@ export const SingleSeries = Template.bind( {} );
 SingleSeries.args = {
 	width: 500,
 	height: 300,
-	margin: { top: 20, right: 20, bottom: 30, left: 40 },
 	data: [ sampleData[ 0 ] ], // Only London temperature data
 };
 
@@ -51,7 +49,6 @@ export const CustomDimensions = Template.bind( {} );
 CustomDimensions.args = {
 	width: 800,
 	height: 400,
-	margin: { top: 20, right: 20, bottom: 30, left: 40 },
 	data: sampleData,
 };
 
@@ -59,6 +56,7 @@ CustomDimensions.args = {
 export const WithLegend = Template.bind( {} );
 WithLegend.args = {
 	...Default.args,
+	showLegend: true,
 };
 
 // Story with vertical legend
