@@ -24,14 +24,14 @@ final class ZeroBSCRM {
 	 *
 	 * @var string
 	 */
-	public $version = '6.3.0';
+	public $version = '6.4.4';
 
 	/**
 	 * WordPress version tested with.
 	 *
 	 * @var string
 	 */
-	public $wp_tested = '6.3';
+	public $wp_tested = '6.7';
 
 	/**
 	 * WordPress update API version.
@@ -238,6 +238,13 @@ final class ZeroBSCRM {
 	public $external_sources = null;
 
 	/**
+	 * Listview filters
+	 *
+	 * @var array Jetpack CRM External Sources
+	 */
+	public $listview_filters = array();
+
+	/**
 	 * Settings Object
 	 *
 	 * @var Jetpack CRM Settings Object
@@ -367,6 +374,16 @@ final class ZeroBSCRM {
 	public $acceptable_mime_types;
 
 	/**
+	 * Acceptable fields to be included in the Total Value of contacts and companies
+	 *
+	 * @var Jetpack CRM Acceptable fields to be included in the Total Value
+	 */
+	public $acceptable_total_value_fields = array(
+		'transactions' => 'Transactions',
+		'invoices'     => 'Invoices',
+	);
+
+	/**
 	 * Acceptable html array
 	 *
 	 * @var Jetpack CRM Acceptable html types list
@@ -464,9 +481,10 @@ final class ZeroBSCRM {
 	 */
 	public $acceptable_restricted_html = array(
 		'a'          => array(
-			'href'  => array(),
-			'title' => array(),
-			'id'    => array(),
+			'href'   => array(),
+			'title'  => array(),
+			'id'     => array(),
+			'target' => array(),
 		),
 		'br'         => array(),
 		'em'         => array(),
@@ -720,9 +738,24 @@ final class ZeroBSCRM {
 				if ( $pagenow == $page || empty( $page ) ) {
 
 					foreach ( $notices as $notice ) {
-
-						echo '<div class="notice notice-' . esc_attr( $notice['class'] ) . ' is-dismissible">' . $notice['html'] . '</div>';
-
+						wp_admin_notice(
+							wp_kses(
+								$notice['html'],
+								array(
+									'a' => array(
+										'href'   => array(),
+										'target' => array(),
+										'class'  => array(),
+									),
+									'p' => array(),
+								)
+							),
+							array(
+								'type'           => esc_attr( $notice['class'] ),
+								'dismissible'    => true,
+								'paragraph_wrap' => false,
+							)
+						);
 					}
 				}
 			}
@@ -801,27 +834,38 @@ final class ZeroBSCRM {
 	 * Retrieves MySQL/MariaDB/Percona database server info
 	 */
 	public function get_database_server_info() {
-
 		if ( empty( $this->database_server_info ) ) {
-			global $wpdb;
-			$raw_version                = $wpdb->get_var( 'SELECT VERSION()' );
-			$version                    = preg_replace( '/[^0-9.].*/', '', $raw_version );
-			$is_mariadb                 = ! ( stripos( $raw_version, 'mariadb' ) === false );
+
+			// Adapted from proposed SQLite integration for core
+			// https://github.com/WordPress/sqlite-database-integration/blob/4a687709bb16a569a7d1ecabfcce433c0e471de8/health-check.php
+			if ( defined( 'DB_ENGINE' ) && DB_ENGINE === 'sqlite' ) {
+				$db_engine       = DB_ENGINE;
+				$db_engine_label = 'SQLite';
+				$raw_version     = class_exists( 'SQLite3' ) ? SQLite3::version()['versionString'] : null;
+				$version         = $raw_version;
+			} else {
+				global $wpdb;
+				$raw_version = $wpdb->get_var( 'SELECT VERSION()' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery
+				$version     = preg_replace( '/[^0-9.].*/', '', $raw_version );
+				if ( stripos( $raw_version, 'mariadb' ) !== false ) {
+					$db_engine       = 'mariadb';
+					$db_engine_label = 'MariaDB';
+				} else {
+					$db_engine       = 'mysql';
+					$db_engine_label = 'MySQL';
+				}
+			}
+
 			$database_server_info       = array(
-				'raw_version' => $raw_version,
-				'version'     => $version,
-				'is_mariadb'  => $is_mariadb,
+				'raw_version'     => $raw_version,
+				'version'         => $version,
+				'db_engine'       => $db_engine,
+				'db_engine_label' => $db_engine_label,
 			);
 			$this->database_server_info = $database_server_info;
 		}
+
 		return $this->database_server_info;
-	}
-
-	// } Use this for shorthand checking old DAL
-	public function isDAL1() {
-
-		// is DAL = 1.0
-		return ( version_compare( $this->dal_version, '2.53' ) < 0 );
 	}
 
 	// } Use this for shorthand checking new DAL additions
@@ -880,10 +924,6 @@ final class ZeroBSCRM {
 		$this->urls['usagetrackinginfo'] = 'https://jetpackcrm.com/usage-tracking/';
 		$this->urls['support-forum']     = 'https://wordpress.org/support/plugin/zero-bs-crm';
 
-		##WLREMOVE
-		$this->urls['betafeedbackemail'] = 'hello@jetpackcrm.com'; // SPECIFICALLY ONLY USED FOR FEEDBACK ON BETA RELEASES, DO NOT USE ELSEWHERE
-		##/WLREMOVE
-
 		$this->urls['docs']              = 'https://kb.jetpackcrm.com/';
 		$this->urls['productsdatatools'] = 'https://jetpackcrm.com/data-tools/';
 		$this->urls['extimgrepo']        = 'https://jetpackcrm.com/_plugin_dependent_assets/_i/';
@@ -940,11 +980,6 @@ final class ZeroBSCRM {
 		// assets
 		$this->urls['crm-logo'] = plugins_url( 'i/jpcrm-logo-stacked-black.png', ZBS_ROOTFILE );
 
-		// temp/updates
-		$this->urls['db3migrate']         = 'https://kb.jetpackcrm.com/knowledge-base/upgrading-database-v3-0-migration/';
-		$this->urls['migrationhelpemail'] = 'hello@jetpackcrm.com';
-		$this->urls['db3migrateexts']     = 'https://kb.jetpackcrm.com/knowledge-base/upgrading-database-v3-0-migration/#extension-compatibility';
-
 		// kb
 		$this->urls['kbdevmode']                = 'https://kb.jetpackcrm.com/knowledge-base/developer-mode/';
 		$this->urls['kbquoteplaceholders']      = 'https://kb.jetpackcrm.com/knowledge-base/placeholders-in-emails-quote-templates-invoices-etc/#quote-template-placeholders';
@@ -971,6 +1006,8 @@ final class ZeroBSCRM {
 		$this->urls['kb-pre-v5-migration-todo'] = 'https://kb.jetpackcrm.com/knowledge-base/upgrading-to-jetpack-crm-v5-0/';
 		$this->urls['kb-mailpoet']              = 'https://kb.jetpackcrm.com/knowledge-base/mailpoet-crm-sync/';
 		$this->urls['kb-automations']           = 'https://kb.jetpackcrm.com/knowledge-base/automations/';
+		$this->urls['kb-contact-fields']        = 'https://kb.jetpackcrm.com/knowledge-base/contact-field-list/';
+		$this->urls['kb-pdf-custom-fonts']      = 'https://kb.jetpackcrm.com/knowledge-base/using-custom-fonts-in-crm-pdfs-e-g-invoice-templates/';
 
 		// coming soon
 		$this->urls['soon'] = 'https://jetpackcrm.com/coming-soon/';
@@ -1379,16 +1416,6 @@ final class ZeroBSCRM {
 
 		// remove dupes - even this doesn't seem to remove the dupes!
 		return array_unique( $extensions_array );
-
-		/*
-		WH wrote this in 2.97.7, but probs not neceessary, not adding to not break anything
-		// only apply filter if legit passed
-		if (is_array($extensions_array) && count($extensions_array) > 0)
-			$extensions_array = apply_filters('zbs_extensions_array', $extensions_array);
-		else // else pass it with empty:
-			$extensions_array = apply_filters('zbs_extensions_array', array());
-
-		return $extensions_array; */
 	}
 
 	// load initial external sources
@@ -1485,16 +1512,6 @@ final class ZeroBSCRM {
 		// ====================================================================
 	}
 
-	/*
-	Don't think we need this
-	#} thumbnail support - :)
-	private function add_thumbnail_support() {
-		if ( ! current_theme_supports( 'post-thumbnails' ) ) {
-			add_theme_support( 'post-thumbnails' );
-		}
-		add_post_type_support( 'product', 'thumbnail' );
-	} */
-
 	public function setup_environment() {
 		// Don't think we need this $this->add_thumbnail_support();  //add thumbnail support
 	}
@@ -1574,10 +1591,8 @@ final class ZeroBSCRM {
 		$this->DAL = new zbsDAL();
 
 		// } ASAP after DAL is initialised, need to run this, which DEFINES all DAL3.Obj.Models into old-style $globalFieldVars
-		// } #FIELDLOADING
-		if ( $this->isDAL3() ) {
-			zeroBSCRM_fields_initialise();
-		}
+		// } #FIELDLOADING'
+		zeroBSCRM_fields_initialise();
 
 		// } Setup Config (centralises version numbers temp)
 		global $zeroBSCRM_Conf_Setup;
@@ -1618,8 +1633,10 @@ final class ZeroBSCRM {
 		$this->dependency_checker = new JPCRM_DependencyChecker();
 
 		// load feature sniffer to alert user to available integrations
+		##WLREMOVE
 		$this->feature_sniffer = new JPCRM_FeatureSniffer();
 		$this->jpcrm_sniff_features();
+		##/WLREMOVE
 
 		// load WordPress User integrations
 		$this->wordpress_user_integration = new Automattic\JetpackCRM\Wordpress_User_Integration();
@@ -1691,7 +1708,7 @@ final class ZeroBSCRM {
 		// If usage tracking is active - include the tracking code.
 		$this->load_usage_tracking();
 
-		if ( $this->isDAL3() && zeroBSCRM_isExtensionInstalled( 'jetpackforms' ) ) {
+		if ( zeroBSCRM_isExtensionInstalled( 'jetpackforms' ) ) {
 			// } Jetpack - can condition this include on detection of Jetpack - BUT the code in Jetpack.php only fires on actions so will be OK to just include
 			require_once ZEROBSCRM_INCLUDE_PATH . 'ZeroBSCRM.Jetpack.php';
 		}
@@ -1808,58 +1825,54 @@ final class ZeroBSCRM {
 			// } Using ownership
 			if ( ! $this->settings->get( 'usercangiveownership' ) ) {
 
-				// DAL3/pre switch
-				if ( $this->isDAL3() ) {
+				// } is one of our dal3 edit pages
+				if ( zeroBSCRM_is_zbs_edit_page() ) {
 
-						// } is one of our dal3 edit pages
-					if ( zeroBSCRM_is_zbs_edit_page() ) {
+					// in this specific case we pre-call globalise_vars
+					// ... which later gets recalled if on an admin page (but it's safe to do so here too)
+					// this moves any _GET into $zbsPage
+					$this->globalise_vars();
 
-						// in this specific case we pre-call globalise_vars
-						// ... which later gets recalled if on an admin page (but it's safe to do so here too)
-						// this moves any _GET into $zbsPage
-						$this->globalise_vars();
+					// this allows us to use these:
+					$obj_id       = $this->zbsvar( 'zbsid' ); // -1 or 123 ID
+					$obj_type_str = $this->zbsvar( 'zbstype' ); // -1 or 'contact'
 
-						// this allows us to use these:
-						$objID      = $this->zbsvar( 'zbsid' ); // -1 or 123 ID
-						$objTypeStr = $this->zbsvar( 'zbstype' ); // -1 or 'contact'
+					// if objtypestr is -1, assume contact (default)
+					if ( $obj_type_str === -1 ) {
+						$obj_type_id = ZBS_TYPE_CONTACT;
+					} else {
+						$obj_type_id = $this->DAL->objTypeID( $obj_type_str ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+					}
 
-						// if objtypestr is -1, assume contact (default)
-						if ( $objTypeStr == -1 ) {
-							$objType = ZBS_TYPE_CONTACT;
-						} else {
-							$objType = $this->DAL->objTypeID( $objTypeStr );
-						}
+					// if is edit page + has obj id, (e.g. is not "new")
+					// then check ownership
+					if ( isset( $obj_id ) && $obj_id > 0 && $obj_type_id > 0 ) {
 
-						// if is edit page + has obj id, (e.g. is not "new")
-						// then check ownership
-						if ( isset( $objID ) && $objID > 0 && $objType > 0 ) {
+						$is_ownership_valid = $this->DAL->checkObjectOwner( // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+							array(
 
-							$ownershipValid = $this->DAL->checkObjectOwner(
-								array(
+								'objID'              => $obj_id,
+								'objTypeID'          => $obj_type_id,
+								'potentialOwnerID'   => get_current_user_id(),
+								'allowNoOwnerAccess' => true, // ?
 
-									'objID'              => $objID,
-									'objTypeID'          => $objType,
-									'potentialOwnerID'   => get_current_user_id(),
-									'allowNoOwnerAccess' => true, // ?
+							)
+						);
 
-								)
-							);
+						// } If user ! has rights, redir
+						if ( ! $is_ownership_valid ) {
 
-							// } If user ! has rights, redir
-							if ( ! $ownershipValid ) {
+							// Redirect to our "no rights" page
+							// OLD WAY header("Location: edit.php?post_type=".$postType."&page=".$this->slugs['zbs-noaccess']."&id=".$postID);
+							header( 'Location: admin.php?page=' . $this->slugs['zbs-noaccess'] . '&zbsid=' . $obj_id . '&zbstype=' . $obj_type_str );
+							exit();
 
-								// } Redirect to our "no rights" page
-								// OLD WAY header("Location: edit.php?post_type=".$postType."&page=".$this->slugs['zbs-noaccess']."&id=".$postID);
-								header( 'Location: admin.php?page=' . $this->slugs['zbs-noaccess'] . '&zbsid=' . $objID . '&zbstype=' . $objTypeStr );
-								exit();
+						} // / no rights.
 
-							} // / no rights.
+					} // / obj ID
 
-						} // / obj ID
+				} // / is edit page
 
-					} // / is edit page
-
-				}
 			} // / is setting usercangiveownership
 
 		} // / !is admin
@@ -1892,6 +1905,9 @@ final class ZeroBSCRM {
 		// This action should replace after_zerobscrm_extsources_init when we refactor load order in this class.
 		// initially used by advanced segments to add custom field segment condition classes after the class is declared in jpcrm-segment-conditions.php
 		do_action( 'jpcrm_post_init' );
+
+		$default_listview_filters = array();
+		$this->listview_filters   = apply_filters( 'jpcrm_listview_filters', $default_listview_filters );
 
 		// this allows us to do stuff (e.g. redirect based on a condition) prior to headers being sent
 		$this->catch_preheader_interrupts();
@@ -3008,14 +3024,6 @@ final class ZeroBSCRM {
 	}
 
 				/**
-				 * Autoload vendor libraries
-				 */
-	public function autoload_libraries() {
-
-		require_once ZEROBSCRM_PATH . 'vendor/autoload.php';
-	}
-
-				/**
 				 * Autoload files from a directory which match a regex filter
 				 */
 	public function autoload_from_directory( string $directory, string $regex_filter ) {
@@ -3217,8 +3225,16 @@ final class ZeroBSCRM {
 		// this batch of option setting ensures we allow remote images (http/s)
 		// ... but they're only allowed from same-site urls
 		$options->set( 'isRemoteEnabled', true );
-		$options->addAllowedProtocol( 'http://', 'jpcrm_dompdf_assist_validate_remote_uri' );
-		$options->addAllowedProtocol( 'https://', 'jpcrm_dompdf_assist_validate_remote_uri' );
+
+		// We have to specify a temporary dir to download the remote images. Not all systems have a writable /tmp dir.
+		$jpcrm_storage_path = wf_jpcrm_storage_dir_path();
+		if ( $jpcrm_storage_path ) {
+			$options->setTempDir( $jpcrm_storage_path . '/tmp' );
+		}
+
+		// Commented: Not necessary. Using CDN sites (Jetpack Boost) for assets will fail because of the validation.
+		// $options->addAllowedProtocol( 'http://', 'jpcrm_dompdf_assist_validate_remote_uri' );
+		// $options->addAllowedProtocol( 'https://', 'jpcrm_dompdf_assist_validate_remote_uri' );
 
 		// use JPCRM storage dir for extra fonts
 		$options->set( 'fontDir', jpcrm_storage_fonts_dir_path() );

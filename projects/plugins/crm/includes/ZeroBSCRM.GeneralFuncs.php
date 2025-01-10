@@ -417,9 +417,10 @@ function zeroBSCRM_wpb_lastlogin($uid ) {
 	    return ((float)$usec + (float)$sec);
 	}     
 
-	#} Does it's best to find the real IP for user
+	#} Does its best to find the real IP for user
 	function zeroBSCRM_getRealIpAddr()
 	{
+		$ip = false;
 		#} check ip from share internet
 		if (isset($_SERVER['HTTP_CLIENT_IP']) && !empty($_SERVER['HTTP_CLIENT_IP']))
 		{
@@ -669,27 +670,27 @@ function jpcrm_inject_contacts( $contacts, $args ) {
 		$injected_contacts = array(
 			array(
 				'id'   => 0,
-				'name' => '<i class="fa fa-diamond green"></i>',
+				'name' => 'Project Oz 🌈',
 			),
 			array(
 				'id'   => -1,
-				'name' => 'Wizard of Oz',
+				'name' => 'Dorothy 👠',
 			),
 			array(
 				'id'   => -2,
-				'name' => 'Dorothy',
+				'name' => 'Toto the Dog 🐶',
 			),
 			array(
 				'id'   => -3,
-				'name' => 'Toto the Dog',
+				'name' => 'Scarecrow 🧑‍🌾',
 			),
 			array(
 				'id'   => -4,
-				'name' => 'Scarecrow',
+				'name' => 'Tin Man 🤖',
 			),
 			array(
 				'id'   => -5,
-				'name' => 'Tin Man',
+				'name' => 'Cowardly Lion 🦁',
 			),
 		);
 	}

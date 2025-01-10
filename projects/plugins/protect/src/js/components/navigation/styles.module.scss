@@ -1,6 +1,5 @@
 .navigation {
 	background-color: var( --jp-white );
-	padding: var( --spacing-base ) 0; // 8px
 	box-shadow: 0px 0px 40px rgba(0, 0, 0, 0.08);
 	border-radius: var( --jp-border-radius );
 	margin: 0;
@@ -139,13 +138,5 @@
 
 	&-icon {
 		margin-right: var( --spacing-base ); // 8px
-	}
-
-	&-open {
-		display: block;
-	}
-
-	&-closed {
-		display: none;
 	}
 }

@@ -60,7 +60,7 @@ function jpcrm_render_dashboard_page() {
 	foreach ( array_reverse( $funnel_statuses ) as $contact_status ) {
 
 		// number of contacts in a given status
-		$count = zeroBS_customerCountByStatus( $contact_status );
+		$count = $zbs->DAL->contacts->getContactCount( array( 'withStatus' => $contact_status ) ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 
 		// number of contacts in this status plus later statuses
 		$backfill_count += $count;
@@ -72,7 +72,7 @@ function jpcrm_render_dashboard_page() {
 			'count'          => $count,
 			'backfill_count' => $backfill_count,
 			'contact_status' => $contact_status,
-			'link'           => false,
+			'link'           => jpcrm_esc_link( $zbs->slugs['managecontacts'] . '&quickfilters=status_' . $contact_status ),
 		);
 	}
 
@@ -218,7 +218,9 @@ function jpcrm_render_dashboard_page() {
 								<?php esc_html_e( 'No valid transactions were added during the last 12 months. You need transactions for your revenue chart to show. If you have transactions, check the guide for more info.', 'zero-bs-crm' ); ?>
 							</div>
 							<div class="jpcrm-div-message">
+								<?php ##WLREMOVE ?>
 								<a href="<?php echo esc_url( $zbs->urls['kbrevoverview'] ); ?>" target="_blank" class="jpcrm-button white-bg"><?php echo esc_html__( 'Read guide', 'zero-bs-crm' ); ?></a>
+								<?php ##/WLREMOVE ?>
 								<a href="<?php echo jpcrm_esc_link( 'create', -1, 'zerobs_transaction', false, false ); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ ?>" class="jpcrm-button"><?php esc_html_e( 'Add a transaction', 'zero-bs-crm' ); ?></a>
 							</div>
 						</div>
@@ -254,8 +256,12 @@ function jpcrm_render_dashboard_page() {
 						$last_x_ago = '';
 						foreach ( $latest_logs as $log ) {
 
-							$em     = zeroBS_customerEmail( $log['owner'] );
-							$avatar = zeroBSCRM_getGravatarURLfromEmail( $em, 28 );
+							$log_avatar  = '';
+							$log_wp_user = get_userdata( $log['owner'] );
+							// If the WP user still exists, grab their email and generate a gravatar URL.
+							if ( $log_wp_user ) {
+								$log_avatar = zeroBSCRM_getGravatarURLfromEmail( $log_wp_user->user_email, 28 );
+							}
 							$unixts = gmdate( 'U', strtotime( $log['created'] ) );
 							$diff   = human_time_diff( $unixts, current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested
 
@@ -287,7 +293,13 @@ function jpcrm_render_dashboard_page() {
 							}
 							?>
 								<div class="feed-item">
-									<img class="ui avatar img img-rounded" alt="<?php esc_attr_e( 'Contact Image', 'zero-bs-crm' ); ?>" src="<?php echo esc_url( $avatar ); ?>"/>
+									<?php
+									if ( $log_wp_user ) {
+										?>
+										<img class="ui avatar img img-rounded" alt="<?php esc_attr_e( 'Contact Image', 'zero-bs-crm' ); ?>" src="<?php echo esc_url( $log_avatar ); ?>"/>
+										<?php
+									}
+									?>
 									<div>
 										<?php echo esc_html( $logmetatype ); ?>
 										<div><?php echo wp_kses( $logmetashot, array( 'i' => array( 'class' => true ) ) ); ?></div>

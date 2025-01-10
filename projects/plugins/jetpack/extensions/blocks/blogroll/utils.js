@@ -2,8 +2,16 @@ import { createBlock } from '@wordpress/blocks';
 import PlaceholderSiteIcon from './placeholder-site-icon.svg';
 
 export function createBlockFromRecommendation( attrs ) {
+	let trimmedURL;
+	try {
+		trimmedURL = new URL( attrs?.url )?.host.replace( /^www\./, '' );
+	} catch {
+		trimmedURL = attrs?.URL;
+	}
+
 	return createBlock( 'jetpack/blogroll-item', {
 		...attrs,
+		...( ! attrs.name && { name: trimmedURL } ),
 	} );
 }
 
@@ -33,7 +41,7 @@ export function getValidDomain( siteURL ) {
 
 	try {
 		return new URL( siteURL )?.host;
-	} catch ( e ) {
+	} catch {
 		return siteURL.match( pattern )?.[ 2 ] ?? null;
 	}
 }

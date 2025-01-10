@@ -2,6 +2,7 @@
 
 use Automattic\Jetpack_Boost\Lib\Minify\Config;
 use Automattic\Jetpack_Boost\Lib\Minify\Dependency_Path_Mapping;
+use Automattic\Jetpack_Boost\Lib\Minify\File_Paths;
 
 /**
  * Get an extra cache key for requests. We can manually bump this when we want
@@ -15,7 +16,7 @@ function jetpack_boost_minify_cache_buster() {
  * Cleanup the given cache folder, removing all files older than $file_age seconds.
  *
  * @param string $cache_folder The path to the cache folder to cleanup.
- * @param int $file_age The age of files to purge, in seconds.
+ * @param int    $file_age The age of files to purge, in seconds.
  */
 function jetpack_boost_page_optimize_cache_cleanup( $cache_folder = false, $file_age = DAY_IN_SECONDS ) {
 	if ( ! is_dir( $cache_folder ) ) {
@@ -59,22 +60,6 @@ function jetpack_boost_page_optimize_deactivate() {
 	jetpack_boost_page_optimize_cache_cleanup( $cache_folder, 0 /* max file age in seconds */ );
 
 	wp_clear_scheduled_hook( 'jetpack_boost_minify_cron_cache_cleanup', array( $cache_folder ) );
-}
-
-/**
- * Plugin uninstall hook - cleanup options.
- */
-function jetpack_boost_page_optimize_uninstall() {
-	// Run cleanup on uninstall. You can uninstall an active plugin w/o deactivation.
-	jetpack_boost_page_optimize_deactivate();
-
-	// JS
-	delete_option( 'page_optimize-js' );
-	delete_option( 'page_optimize-load-mode' );
-	delete_option( 'page_optimize-js-exclude' );
-	// CSS
-	delete_option( 'page_optimize-css' );
-	delete_option( 'page_optimize-css-exclude' );
 }
 
 /**
@@ -214,6 +199,13 @@ function jetpack_boost_page_optimize_bail() {
 		return true;
 	}
 
+	// Bail in elementor preview
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( isset( $_GET['elementor-preview'] ) ) {
+		$should_bail = true;
+		return true;
+	}
+
 	return $should_bail;
 }
 
@@ -296,7 +288,7 @@ function jetpack_boost_minify_serve_concatenated() {
 		if ( $prefix === substr( $request_path, -strlen( $prefix ), strlen( $prefix ) ) ) {
 			require_once __DIR__ . '/functions-service.php';
 			jetpack_boost_page_optimize_service_request();
-			exit;
+			exit; // @phan-suppress-current-line PhanPluginUnreachableCode -- Safer to include it even though jetpack_boost_page_optimize_service_request() itself never returns.
 		}
 	}
 }
@@ -315,10 +307,6 @@ function jetpack_boost_minify_setup() {
 	}
 	$setup_done = true;
 
-	// Hook up deactivation and uninstall cleanup paths.
-	register_deactivation_hook( JETPACK_BOOST_PATH, 'jetpack_boost_page_optimize_deactivate' );
-	register_uninstall_hook( JETPACK_BOOST_PATH, 'jetpack_boost_page_optimize_uninstall' );
-
 	// Schedule cache cleanup.
 	add_action( 'jetpack_boost_minify_cron_cache_cleanup', 'jetpack_boost_page_optimize_cache_cleanup' );
 	jetpack_boost_page_optimize_schedule_cache_cleanup();
@@ -327,4 +315,24 @@ function jetpack_boost_minify_setup() {
 		// Disable Jetpack Site Accelerator CDN for static JS/CSS, if we're minifying this page.
 		add_filter( 'jetpack_force_disable_site_accelerator', '__return_true' );
 	}
+}
+
+function jetpack_boost_page_optimize_generate_concat_path( $url_paths, $dependency_path_mapping ) {
+	$fs_paths = array();
+	foreach ( $url_paths as $url_path ) {
+		$fs_paths[] = $dependency_path_mapping->uri_path_to_fs_path( $url_path );
+	}
+
+	$mtime = max( array_map( 'filemtime', $fs_paths ) );
+	if ( jetpack_boost_page_optimize_use_concat_base_dir() ) {
+		$paths = array_map( 'jetpack_boost_page_optimize_remove_concat_base_prefix', $fs_paths );
+	} else {
+		$paths = $url_paths;
+	}
+
+	$file_paths = new File_Paths();
+	$file_paths->set( $paths, $mtime, jetpack_boost_minify_cache_buster() );
+	$file_paths->store();
+
+	return $file_paths->get_cache_id();
 }

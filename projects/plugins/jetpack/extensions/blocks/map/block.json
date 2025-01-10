@@ -1,6 +1,6 @@
 {
 	"$schema": "https://schemas.wp.org/trunk/block.json",
-	"apiVersion": 1,
+	"apiVersion": 3,
 	"name": "jetpack/map",
 	"title": "Map",
 	"description": "Add an interactive map showing one or more locations.",
@@ -41,10 +41,6 @@
 			"type": "string",
 			"default": "red"
 		},
-		"preview": {
-			"type": "boolean",
-			"default": false
-		},
 		"scrollToZoom": {
 			"type": "boolean",
 			"default": false
@@ -57,9 +53,5 @@
 			"default": true
 		}
 	},
-	"example": {
-		"attributes": {
-			"preview": true
-		}
-	}
+	"example": {}
 }

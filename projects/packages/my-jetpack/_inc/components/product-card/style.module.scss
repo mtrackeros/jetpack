@@ -3,7 +3,16 @@ $status-size: 8px;
 $box-shadow-color: rgba( 0, 0, 0, 0.1 );
 
 .container {
+	position: relative;
 	min-height: 200px;
+	&.has-error {
+		border-width: 1px;
+		border-color: var( --jp-red-50 );
+	}
+	&.has-warning {
+		border-width: 1px;
+		border-color: #DEB100;
+	}
 }
 
 .description {
@@ -15,9 +24,16 @@ $box-shadow-color: rgba( 0, 0, 0, 0.1 );
 	align-items: center;
 	justify-content: space-between;
 	width: 100%;
-	margin-top: calc( var( --spacing-base ) * 3 ); // 16px
+	margin-top: auto; // align to the bottom
+	padding-top: calc( var( --spacing-base ) * 3 ); // 16px
 	min-height: $actions-size;
 	flex-wrap: wrap;
+}
+
+.buttons {
+	display: flex;
+	justify-content: flex-start;
+	gap: var( --spacing-base );
 }
 
 .title {
@@ -70,6 +86,7 @@ $box-shadow-color: rgba( 0, 0, 0, 0.1 );
 	border-radius: calc( var( --jp-border-radius ) / 2 );
 	box-shadow: 0px 1px 1px 0px $box-shadow-color, 0px 1px 1.5px 0px $box-shadow-color, 0px 2px 3px -0.5px $box-shadow-color;
 	padding: var( --spacing-base );
+	z-index: 1;
 
 	.dropdown-item {
 		display: flex;
@@ -85,7 +102,7 @@ $box-shadow-color: rgba( 0, 0, 0, 0.1 );
 			background-color: var( --jp-gray-0 );
 		}
 	}
-	
+
 	.dropdown-item-label {
 		display: flex;
 		align-items: center;
@@ -107,6 +124,29 @@ $box-shadow-color: rgba( 0, 0, 0, 0.1 );
 	}
 }
 
+.priceContainer {
+	display: flex;
+	align-items: baseline;
+	gap: calc(var(--spacing-base) * 0.5);
+	margin-bottom: var(--spacing-base);
+}
+
+.price {
+	font-size: var(--font-body);
+	color: var(--jp-gray-100);
+	font-weight: 600;
+
+	&.discounted {
+		color: var(--jp-gray-30);
+		text-decoration: line-through;
+	}
+}
+
+.term {
+	font-size: var(--font-body-extra-small);
+	color: var(--jp-gray-30);
+}
+
 .status {
 	white-space: nowrap;
 	height: $actions-size;
@@ -126,6 +166,7 @@ $box-shadow-color: rgba( 0, 0, 0, 0.1 );
 	$statuses: (
 		"active": "--jp-green-50",
 		"inactive": "--jp-gray-50",
+		"warning": "--jp-yellow-40",
 		"error": "--jp-red-60"
 	);
 

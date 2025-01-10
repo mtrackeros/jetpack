@@ -1,7 +1,7 @@
-import classNames from 'classnames';
-import PlanIcon from 'components/plans/plan-icon/index';
+import clsx from 'clsx';
 import PropTypes from 'prop-types';
 import React from 'react';
+import PlanIcon from 'components/plans/plan-icon/index';
 
 import './style.scss';
 
@@ -16,18 +16,18 @@ const MyPlanCard = ( {
 	isPlan,
 	cardClassNames = [],
 } ) => {
-	cardClassNames = classNames( 'my-plan-card', ...cardClassNames, {
+	cardClassNames = clsx( 'my-plan-card', ...cardClassNames, {
 		'is-placeholder': isPlaceholder,
 		'is-plan': isPlan,
 		'has-action-only': action && ! details && ! isPlaceholder,
 	} );
-	const detailsClassNames = classNames( 'my-plan-card__details', { 'is-error': isError } );
+	const detailsClassNames = clsx( 'my-plan-card__details', { 'is-error': isError } );
 
 	return (
 		<div className={ cardClassNames }>
 			<div className="my-plan-card__primary">
 				<div className="my-plan-card__icon">
-					{ productSlug && <PlanIcon plan={ productSlug } alt={ title } /> }
+					{ productSlug && <PlanIcon plan={ productSlug } alt="" /> }
 				</div>
 				<div className="my-plan-card__header">
 					{ title && <h2 className="my-plan-card__title">{ title }</h2> }
