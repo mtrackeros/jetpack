@@ -480,16 +480,6 @@
 	}
 }
 
-.jetpack-field-label__width {
-	.components-button-group {
-		display: block;
-	}
-
-	.components-base-control__field {
-		margin-bottom: 12px;
-	}
-}
-
 // Duplicated to elevate specificity in order to overwrite core styles
 .jetpack-field-multiple__list.jetpack-field-multiple__list {
 	list-style-type: none;
