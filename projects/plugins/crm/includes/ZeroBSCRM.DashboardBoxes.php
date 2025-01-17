@@ -32,7 +32,7 @@ add_action('zbs_dashboard_pre_dashbox_post_totals', 'zeroBS_dashboard_crm_list_g
 function zeroBS_dashboard_crm_list_growth(){
 
 	global $zbs;
-	$contacts_added_in_last_year = (int) $zbs->DAL->getContacts( // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+	$contacts_added_in_last_year = (int) $zbs->DAL->contacts->getContacts( // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		array(
 			'newerThan' => strtotime( '-1 year', time() ),
 			'count'     => true,
@@ -79,7 +79,9 @@ function zeroBS_dashboard_crm_list_growth(){
 						<?php esc_html_e( 'No contacts were added during the last 12 months. You need contacts for your growth chart to show.', 'zero-bs-crm' ); ?>
 					</div>
 					<div class="jpcrm-div-message">
+						<?php ##WLREMOVE ?>
 						<a href="<?php echo esc_url( $zbs->urls['kbfirstcontact'] ); ?>" target="_blank" class="jpcrm-button white-bg"><?php echo esc_html__( 'Read guide', 'zero-bs-crm' ); ?></a>
+						<?php ##/WLREMOVE ?>
 						<a href="<?php echo jpcrm_esc_link( 'create', -1, 'zerobs_customer', false, false ); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ ?>" class="jpcrm-button"><?php esc_html_e( 'Add a contact', 'zero-bs-crm' ); ?></a>
 					</div>
 				</div>

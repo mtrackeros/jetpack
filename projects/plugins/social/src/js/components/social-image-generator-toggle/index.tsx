@@ -1,55 +1,50 @@
 import { Button, Text, useBreakpointMatch } from '@automattic/jetpack-components';
-import { SocialImageGeneratorTemplatePickerModal as TemplatePickerModal } from '@automattic/jetpack-publicize-components';
-import { SOCIAL_STORE_ID } from '@automattic/jetpack-publicize-components';
-import { useSelect, useDispatch } from '@wordpress/data';
-import { useState, useCallback, useEffect } from '@wordpress/element';
+import {
+	SocialImageGeneratorTemplatePickerModal as TemplatePickerModal,
+	store as socialStore,
+} from '@automattic/jetpack-publicize-components';
+import { useDispatch, useSelect } from '@wordpress/data';
+import { useCallback } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import React from 'react';
 import ToggleSection from '../toggle-section';
-import { SocialStoreSelectors } from '../types/types';
 import styles from './styles.module.scss';
 
-interface SocialImageGeneratorToggleProps {
+type SocialImageGeneratorToggleProps = {
 	/**
-	 * Whether or not to refresh the settings.
+	 * If the toggle is disabled.
 	 */
-	shouldRefresh: boolean;
-}
+	disabled?: boolean;
+};
 
 const SocialImageGeneratorToggle: React.FC< SocialImageGeneratorToggleProps > = ( {
-	shouldRefresh,
+	disabled,
 } ) => {
-	const refreshSettings = useDispatch( SOCIAL_STORE_ID ).refreshSocialImageGeneratorSettings;
-
-	useEffect( () => {
-		shouldRefresh && refreshSettings();
-	}, [ shouldRefresh, refreshSettings ] );
-
-	const [ currentTemplate, setCurrentTemplate ] = useState< string | null >( null );
 	const { isEnabled, isUpdating, defaultTemplate } = useSelect( select => {
-		const store = select( SOCIAL_STORE_ID ) as SocialStoreSelectors;
+		const config = select( socialStore ).getSocialImageGeneratorConfig();
+
 		return {
-			isEnabled: store.isSocialImageGeneratorEnabled(),
-			isUpdating: store.isUpdatingSocialImageGeneratorSettings(),
-			defaultTemplate: store.getSocialImageGeneratorDefaultTemplate(),
+			isEnabled: config.enabled,
+			defaultTemplate: config.template,
+			isUpdating: select( socialStore ).isSavingSiteSettings(),
 		};
 	}, [] );
 
-	const updateOptions = useDispatch( SOCIAL_STORE_ID ).updateSocialImageGeneratorSettings;
+	const { updateSocialImageGeneratorConfig } = useDispatch( socialStore );
 
 	const toggleStatus = useCallback( () => {
 		const newOption = {
 			enabled: ! isEnabled,
 		};
-		updateOptions( newOption );
-	}, [ isEnabled, updateOptions ] );
+		updateSocialImageGeneratorConfig( newOption );
+	}, [ isEnabled, updateSocialImageGeneratorConfig ] );
 
-	useEffect( () => {
-		if ( currentTemplate ) {
-			const newOption = { defaults: { template: currentTemplate } };
-			updateOptions( newOption );
-		}
-	}, [ currentTemplate, updateOptions ] );
+	const updateTemplate = useCallback(
+		( template: string ) => {
+			updateSocialImageGeneratorConfig( { template } );
+		},
+		[ updateSocialImageGeneratorConfig ]
+	);
 
 	const [ isSmall ] = useBreakpointMatch( 'sm' );
 
@@ -71,19 +66,19 @@ const SocialImageGeneratorToggle: React.FC< SocialImageGeneratorToggleProps > = 
 	return (
 		<ToggleSection
 			title={ __( 'Enable Social Image Generator', 'jetpack-social' ) }
-			disabled={ isUpdating }
+			disabled={ isUpdating || disabled }
 			checked={ isEnabled }
 			onChange={ toggleStatus }
 		>
 			<Text className={ styles.text }>
 				{ __(
-					'When enabled, Social Image Generator will automatically generate social images for your posts. You can use the button below to choose a default template for new posts.',
+					'When enabled, Social Image Generator will automatically generate social images for your posts. You can use the button below to choose a default template for new posts. This feature is only supported in the block editor.',
 					'jetpack-social'
 				) }
 			</Text>
 			<TemplatePickerModal
-				value={ currentTemplate || defaultTemplate }
-				onSelect={ setCurrentTemplate }
+				value={ defaultTemplate }
+				onSelect={ updateTemplate }
 				render={ renderTemplatePickerModal }
 			/>
 		</ToggleSection>

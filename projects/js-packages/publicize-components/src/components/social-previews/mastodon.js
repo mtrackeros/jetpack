@@ -3,20 +3,18 @@ import { useSelect } from '@wordpress/data';
 import { decodeEntities } from '@wordpress/html-entities';
 import useSocialMediaMessage from '../../hooks/use-social-media-message';
 import { SOCIAL_STORE_ID, CONNECTION_SERVICE_MASTODON } from '../../social-store';
-import { usePostMeta } from '../../utils';
 
 const MastodonPreview = props => {
 	const { message } = useSocialMediaMessage();
 	const { content, siteName } = useSelect( select => {
 		const { getEditedPostAttribute } = select( 'core/editor' );
-		const { getSite } = select( 'core' );
+		const { getUnstableBase } = select( 'core' );
 
 		return {
 			content: getEditedPostAttribute( 'content' ).split( '<!--more' )[ 0 ],
-			siteName: decodeEntities( getSite().title ),
+			siteName: decodeEntities( getUnstableBase().name ),
 		};
 	} );
-	const { shouldUploadAttachedMedia: isSocialPost } = usePostMeta();
 
 	const user = useSelect( select => {
 		const {
@@ -40,7 +38,6 @@ const MastodonPreview = props => {
 			description={ content }
 			customText={ message }
 			customImage={ customImage }
-			isSocialPost={ isSocialPost }
 		/>
 	);
 };

@@ -478,13 +478,14 @@ class zbsDAL_quotetemplates extends zbsDAL_ObjectLayer {
 
 
 
-    /**
-     * Returns a count of contacts (owned)
-     * Replaces zeroBS_customerCount AND zeroBS_getCustomerCount AND zeroBS_customerCountByStatus
-     *
-     *
-     * @return int count
-     */
+	/**
+	 * Returns a count of contacts (owned)
+	 * Replaces zeroBS_customerCount
+	 *
+	 * @param object $args - DAL args.
+	 *
+	 * @return int count
+	 */
     public function getQuotetemplateCount($args=array()){
 
         #} ============ LOAD ARGS =============
@@ -1070,7 +1071,7 @@ class zbsDAL_quotetemplates extends zbsDAL_ObjectLayer {
             $res['owner'] = $obj->zbs_owner;
 
 
-            $res['title'] = $this->stripSlashes($obj->zbsqt_title);
+			$res['title']            = wp_kses( html_entity_decode( $obj->zbsqt_title, ENT_QUOTES, 'UTF-8' ), $zbs->acceptable_restricted_html );
             $res['value'] = $this->stripSlashes($obj->zbsqt_value);
             $res['date_str'] = $this->stripSlashes($obj->zbsqt_date_str);
             $res['date'] = (int)$obj->zbsqt_date;

@@ -5,10 +5,14 @@ import { withSelect } from '@wordpress/data';
 import { Component } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { UP, DOWN, LEFT, RIGHT } from '@wordpress/keycodes';
-import classnames from 'classnames';
+import clsx from 'clsx';
 import { uniqBy } from 'lodash';
 import { PATH_RECENT } from '../constants';
-import { authenticateMediaSource } from '../media-service';
+import {
+	authenticateMediaSource,
+	getGooglePhotosPickerSession,
+	setGooglePhotosPickerSession,
+} from '../media-service';
 import { MediaSource } from '../media-service/types';
 
 export default function withMedia( mediaSource = MediaSource.Unknown ) {
@@ -95,7 +99,7 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 				return base;
 			}
 
-			getMedia = ( url, resetMedia = false ) => {
+			getMedia = ( url, resetMedia = false, isLoading = true ) => {
 				if ( this.state.isLoading ) {
 					return;
 				}
@@ -107,7 +111,7 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 				this.setState(
 					{
 						account: resetMedia ? this.defaultAccount : this.state.account,
-						isLoading: true,
+						isLoading: isLoading,
 						media: resetMedia ? [] : this.state.media,
 						nextHandle: resetMedia ? false : this.state.nextHandle,
 					},
@@ -131,7 +135,7 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 				}
 
 				const { noticeOperations } = this.props;
-
+				noticeOperations.removeAllNotices();
 				noticeOperations.createErrorNotice(
 					error.code === 'internal_server_error' ? 'Internal server error' : error.message
 				);
@@ -165,6 +169,10 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 					parse: window.wpcomFetch === undefined,
 				} )
 					.then( result => {
+						// If we don't have media available, we should show an error instead of crashing the editor.
+						if ( result.media === undefined ) {
+							throw { code: 'internal_server_error' };
+						}
 						this.setState( {
 							account: result.meta.account,
 							media: this.mergeMedia( media, result.media ),
@@ -176,7 +184,7 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 					.catch( this.handleApiError );
 			};
 
-			copyMedia = ( items, apiUrl, source ) => {
+			copyMedia = ( items, apiUrl, source, shouldProxy = false ) => {
 				this.setState( { isCopying: items } );
 				this.props.noticeOperations.removeAllNotices();
 
@@ -197,7 +205,8 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 							title: item.title,
 						} ) ),
 						service: source, // WPCOM.
-						post_id: this.props.postId ?? 0,
+						post_id: this.props.postId,
+						should_proxy: shouldProxy,
 					},
 				} )
 					.then( result => {
@@ -227,11 +236,96 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 						}
 
 						this.props.onClose();
-
 						// Select the image(s). This will close the modal
 						this.props.onSelect( addToGallery ? value.concat( result ) : media );
 					} )
 					.catch( this.handleApiError );
+			};
+
+			createPickerSession = () => {
+				return apiFetch( {
+					path: '/wpcom/v2/external-media/session/google_photos',
+					method: 'POST',
+				} )
+					.then( response => {
+						if ( 'code' in response ) {
+							throw response;
+						}
+						return response;
+					} )
+					.then( session => {
+						setGooglePhotosPickerSession( session );
+						return session;
+					} );
+			};
+
+			fetchPickerSession = sessionId => {
+				return apiFetch( {
+					path: `/wpcom/v2/external-media/session/google_photos/${ sessionId }`,
+					method: 'GET',
+				} )
+					.then( response => {
+						if ( 'code' in response ) {
+							throw response;
+						}
+						return response;
+					} )
+					.then( session => {
+						setGooglePhotosPickerSession( session );
+						return session;
+					} );
+			};
+
+			deletePickerSession = ( sessionId, updateState = true ) => {
+				return apiFetch( {
+					path: `/wpcom/v2/external-media/session/google_photos/${ sessionId }`,
+					method: 'DELETE',
+				} ).then( () => updateState && setGooglePhotosPickerSession( null ) );
+			};
+
+			getPickerStatus = () => {
+				return apiFetch( {
+					path: '/wpcom/v2/external-media/connection/google_photos/picker_status',
+					method: 'GET',
+				} );
+			};
+
+			mapImageToResult = image => ( {
+				alt: image.name,
+				caption: image.caption,
+				id: image.ID,
+				type: 'image',
+				url: image.url,
+				sizes: {
+					thumbnail: { url: image.thumbnails.thumbnail },
+					large: { url: image.thumbnails.large },
+				},
+			} );
+
+			insertMedia = items => {
+				this.setState( { isCopying: items } );
+				this.props.noticeOperations.removeAllNotices();
+
+				// If we have a modal element set, focus it.
+				// Otherwise focus is reset to the body instead of staying within the Modal.
+				if ( this.modalElement ) {
+					this.modalElement.focus();
+				}
+				let result = [];
+
+				// insert media
+				if ( items.length !== 0 ) {
+					result = items.map( this.mapImageToResult );
+				} else {
+					result = [ this.mapImageToResult( items ) ];
+				}
+
+				const { value, multiple, addToGallery } = this.props;
+				const media = multiple ? result : result[ 0 ];
+
+				this.props.onClose();
+				this.props.onSelect( addToGallery ? value.concat( result ) : media );
+				// end insert media
 			};
 
 			onChangePath = ( path, cb ) => {
@@ -243,9 +337,11 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 					this.state;
 				const { allowedTypes, multiple = false, noticeUI, onClose } = this.props;
 
-				const title = isCopying
-					? __( 'Inserting media', 'jetpack' )
-					: __( 'Select media', 'jetpack', /* dummy arg to avoid bad minification */ 0 );
+				const defaultTitle =
+					mediaSource !== 'jetpack_app_media' ? __( 'Select media', 'jetpack' ) : '';
+
+				const title = isCopying ? __( 'Inserting media', 'jetpack' ) : defaultTitle;
+
 				const description = isCopying
 					? __(
 							'When the media is finished copying and inserting, you will be returned to the editor.',
@@ -258,9 +354,10 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 					  );
 
 				const describedby = 'jetpack-external-media-browser__description';
-				const classes = classnames( {
+				const classes = clsx( {
 					'jetpack-external-media-browser': true,
 					'jetpack-external-media-browser--is-copying': isCopying,
+					'is-jetpack-app-media': mediaSource === 'jetpack_app_media',
 				} );
 
 				return (
@@ -281,6 +378,7 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 								account={ account }
 								getMedia={ this.getMedia }
 								copyMedia={ this.copyMedia }
+								insertMedia={ this.insertMedia }
 								isCopying={ isCopying }
 								isLoading={ isLoading }
 								media={ media }
@@ -291,6 +389,11 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 								multiple={ multiple }
 								path={ path }
 								onChangePath={ this.onChangePath }
+								pickerSession={ this.props.pickerSession }
+								createPickerSession={ this.createPickerSession }
+								fetchPickerSession={ this.fetchPickerSession }
+								deletePickerSession={ this.deletePickerSession }
+								getPickerStatus={ this.getPickerStatus }
 							/>
 						</div>
 					</Modal>
@@ -299,8 +402,14 @@ export default function withMedia( mediaSource = MediaSource.Unknown ) {
 		}
 
 		return withSelect( select => {
+			const currentPost = select( 'core/editor' ).getCurrentPost();
+			// Templates and template parts' numerical ID is stored in `wp_id`.
+			const currentPostId =
+				typeof currentPost?.id === 'number' ? currentPost.id : currentPost?.wp_id;
+
 			return {
-				postId: select( 'core/editor' ).getCurrentPostId(),
+				postId: currentPostId ?? 0,
+				pickerSession: getGooglePhotosPickerSession(),
 			};
 		} )( withNotices( WithMediaComponent ) );
 	} );

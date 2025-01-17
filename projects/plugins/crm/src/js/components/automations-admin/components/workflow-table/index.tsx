@@ -1,5 +1,5 @@
-import { Workflow } from 'crm/state/automations-admin/types';
 import { useCallback, useState } from 'react';
+import { Workflow } from 'crm/state/automations-admin/types';
 import { WorkflowRow } from '../workflow-row';
 import { WorkflowTableHeader } from '../workflow-table-header';
 import styles from './styles.module.scss';
@@ -17,23 +17,26 @@ export const WorkflowTable: React.FC< WorkflowTableProps > = props => {
 	const [ sortedColumn, setSortedColumn ] = useState< SortableWorkflowTableColumn >( 'name' );
 	const [ sortDirection, setSortDirection ] = useState< SortDirection >( 'ascending' );
 
-	const getSortableHeaderOnClick = ( column: SortableWorkflowTableColumn ) => {
-		return useCallback( () => {
-			if ( column !== sortedColumn ) {
-				setSortDirection( 'ascending' );
-			} else {
-				'ascending' === sortDirection
-					? setSortDirection( 'descending' )
-					: setSortDirection( 'ascending' );
-			}
-
-			setSortedColumn( column );
-		}, [ column, sortedColumn, setSortedColumn, sortDirection, setSortDirection ] );
-	};
+	const getSortableHeaderOnClick = useCallback(
+		( column: SortableWorkflowTableColumn ) => {
+			return () => {
+				if ( column !== sortedColumn ) {
+					setSortDirection( 'ascending' );
+				} else {
+					'ascending' === sortDirection
+						? setSortDirection( 'descending' )
+						: setSortDirection( 'ascending' );
+				}
+				setSortedColumn( column );
+			};
+		},
+		[ sortedColumn, setSortedColumn, sortDirection, setSortDirection ]
+	);
 
 	const getSortableWorkflowTableHeader = ( column: SortableWorkflowTableColumn ) => {
 		return (
 			<WorkflowTableHeader
+				key={ column }
 				column={ column }
 				onClick={ getSortableHeaderOnClick( column ) }
 				selectedForSort={ sortedColumn === column }
@@ -49,14 +52,22 @@ export const WorkflowTable: React.FC< WorkflowTableProps > = props => {
 	return (
 		<div className={ styles.container }>
 			<table className={ styles.table }>
-				<tr className={ styles[ 'header-row' ] }>
-					<WorkflowTableHeader column={ 'checkbox' } />
-					{ sortableColumns.map( column => getSortableWorkflowTableHeader( column ) ) }
-					<WorkflowTableHeader column={ 'edit' } />
-				</tr>
-				{ sortedWorkflows.map( workflow => (
-					<WorkflowRow workflow={ workflow } refetchWorkflows={ refetchWorkflows } />
-				) ) }
+				<thead>
+					<tr className={ styles[ 'header-row' ] }>
+						<WorkflowTableHeader column={ 'checkbox' } />
+						{ sortableColumns.map( column => getSortableWorkflowTableHeader( column ) ) }
+						<WorkflowTableHeader column={ 'edit' } />
+					</tr>
+				</thead>
+				<tbody>
+					{ sortedWorkflows.map( workflow => (
+						<WorkflowRow
+							key={ workflow.id }
+							workflow={ workflow }
+							refetchWorkflows={ refetchWorkflows }
+						/>
+					) ) }
+				</tbody>
 			</table>
 		</div>
 	);

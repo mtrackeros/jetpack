@@ -18,16 +18,6 @@ class REST_Product_Data {
 	 * Constructor.
 	 */
 	public function __construct() {
-		register_rest_route(
-			'my-jetpack/v1',
-			'site/product-data',
-			array(
-				'methods'             => \WP_REST_Server::READABLE,
-				'callback'            => __CLASS__ . '::get_all_product_data',
-				'permission_callback' => __CLASS__ . '::permissions_callback',
-			)
-		);
-
 		// Get backup undo event
 		register_rest_route(
 			'my-jetpack/v1',
@@ -45,67 +35,6 @@ class REST_Product_Data {
 	 */
 	public static function permissions_callback() {
 		return current_user_can( 'manage_options' );
-	}
-
-	/**
-	 * Gets the product data for all products
-	 *
-	 * @return array|WP_Error
-	 */
-	public static function get_all_product_data() {
-		$site_id        = \Jetpack_Options::get_option( 'id' );
-		$wpcom_endpoint = sprintf( 'sites/%d/jetpack-product-data?locale=%2$s&force=wpcom', $site_id, get_user_locale() );
-		$api_version    = '2';
-		$response       = Client::wpcom_json_api_request_as_blog( $wpcom_endpoint, $api_version, array(), null, 'wpcom' );
-		$response_code  = wp_remote_retrieve_response_code( $response );
-		$body           = json_decode( wp_remote_retrieve_body( $response ) );
-
-		$capabilities = self::get_backup_capabilities();
-
-		if ( is_wp_error( $response ) || empty( $response['body'] ) || 200 !== $response_code ) {
-			return new WP_Error( 'site_products_data_fetch_failed', 'Site products data fetch failed', array( 'status' => $response_code ? $response_code : 400 ) );
-		}
-
-		// If site has backups and the realtime backup capability, add latest undo event
-		if (
-			in_array( 'backup-realtime', $capabilities->data['capabilities'], true )
-		) {
-			$body->backups->last_undoable_event = self::get_site_backup_undo_event();
-		}
-
-		return rest_ensure_response( $body, 200 );
-	}
-
-	/**
-	 * Get an array of backup/scan/anti-spam site capabilities
-	 *
-	 * @access public
-	 * @static
-	 *
-	 * @return WP_Error|\WP_REST_Response|null An array of capabilities
-	 */
-	public static function get_backup_capabilities() {
-		$blog_id = \Jetpack_Options::get_option( 'id' );
-
-		$response = Client::wpcom_json_api_request_as_user(
-			'/sites/' . $blog_id . '/rewind/capabilities',
-			'v2',
-			array(),
-			null,
-			'wpcom'
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return null;
-		}
-
-		if ( 200 !== $response['response']['code'] ) {
-			return null;
-		}
-
-		return rest_ensure_response(
-			json_decode( $response['body'], true )
-		);
 	}
 
 	/**
@@ -168,6 +97,6 @@ class REST_Product_Data {
 			}
 		}
 
-		return rest_ensure_response( $undo_event, 200 );
+		return rest_ensure_response( $undo_event );
 	}
 }

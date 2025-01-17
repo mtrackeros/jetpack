@@ -1,27 +1,16 @@
 import { Dialog, ProductOffer, TermsOfService } from '@automattic/jetpack-components';
 import { useConnection } from '@automattic/jetpack-connection';
-import { SOCIAL_STORE_ID } from '@automattic/jetpack-publicize-components';
-import { useSelect } from '@wordpress/data';
 import { __ } from '@wordpress/i18n';
 import React from 'react';
 import background from './background.svg';
 import illustration from './illustration.png';
 import styles from './styles.module.scss';
-const ConnectionScreen = () => {
-	const connectProps = useSelect( select => {
-		const store = select( SOCIAL_STORE_ID );
-		return {
-			apiRoot: store.getAPIRootUrl(),
-			apiNonce: store.getAPINonce(),
-			registrationNonce: store.getRegistrationNonce(),
-		};
-	} );
 
+const ConnectionScreen = () => {
 	const { userIsConnecting, siteIsRegistering, handleRegisterSite, registrationError } =
 		useConnection( {
 			from: 'jetpack-social',
 			redirectUri: 'admin.php?page=jetpack-social',
-			...connectProps,
 		} );
 
 	const buttonText = __( 'Get Started', 'jetpack-social' );
@@ -34,15 +23,18 @@ const ConnectionScreen = () => {
 					<ProductOffer
 						className={ styles.offer }
 						slug={ 'jetpack-social' }
-						title={ 'Jetpack Social' }
+						title={ __( 'Jetpack Social', 'jetpack-social' ) }
 						subTitle={ __(
 							'Share your posts with your social media network and increase your site’s traffic',
 							'jetpack-social'
 						) }
 						features={ [
-							'Connect with Instagram, Facebook, Mastodon, LinkedIn, and Tumblr',
-							'Select the social media to share posts while publishing',
-							'Publish custom messages',
+							__(
+								'Share to Facebook, Instagram, LinkedIn, Mastodon, Tumblr, Threads, Bluesky, and Nextdoor',
+								'jetpack-social'
+							),
+							__( 'Post to multiple channels at once', 'jetpack-social' ),
+							__( 'Manage all of your channels from a single hub', 'jetpack-social' ),
 						] }
 						isCard={ false }
 						isBundle={ false }

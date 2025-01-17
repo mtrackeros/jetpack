@@ -3,12 +3,11 @@
  * Testing CRUD on Meta
  */
 
+use Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin;
 use Automattic\Jetpack\Sync\Defaults;
 use Automattic\Jetpack\Sync\Modules;
 use Automattic\Jetpack\Sync\Modules\Posts;
 use Automattic\Jetpack\Sync\Settings;
-
-require_once JETPACK__PLUGIN_DIR . 'modules/contact-form/grunion-contact-form.php';
 
 class WP_Test_Jetpack_Sync_Meta extends WP_Test_Jetpack_Sync_Base {
 	protected $post_id;
@@ -201,12 +200,23 @@ class WP_Test_Jetpack_Sync_Meta extends WP_Test_Jetpack_Sync_Base {
 
 		// update all the options.
 		foreach ( $white_listed_post_meta as $meta_key ) {
+			if ( $meta_key === 'footnotes' ) {
+				// WordPress would filter non-array into an empty string, and fail the test
+				// See sanitize_post_meta_footnotes filter
+				add_post_meta( $this->post_id, $meta_key, wp_json_encode( array() ) );
+				continue;
+			}
 			add_post_meta( $this->post_id, $meta_key, 'foo' );
 		}
 
 		$this->sender->do_sync();
 
 		foreach ( $white_listed_post_meta as $meta_key ) {
+			if ( $meta_key === 'footnotes' ) {
+				$this->assertOptionIsSynced( $meta_key, '[]', 'post', $this->post_id );
+				continue;
+			}
+
 			$this->assertOptionIsSynced( $meta_key, 'foo', 'post', $this->post_id );
 		}
 		$whitelist = Settings::get_setting( 'post_meta_whitelist' );
@@ -267,7 +277,7 @@ class WP_Test_Jetpack_Sync_Meta extends WP_Test_Jetpack_Sync_Base {
 		// This event can trigger a deletion of many _feedbacakismet_values terms.
 		add_post_meta( $post_id, '_feedback_akismet_values', '1' );
 
-		$grunion = Grunion_Contact_Form_Plugin::init();
+		$grunion = Contact_Form_Plugin::init();
 		$grunion->daily_akismet_meta_cleanup();
 
 		$this->sender->do_sync();

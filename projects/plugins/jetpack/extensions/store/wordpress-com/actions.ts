@@ -19,15 +19,14 @@ import {
 	NEW_ASYNC_REQUEST_TIMER_INTERVAL,
 	ACTION_SET_TIER_PLANS_ENABLED,
 } from './constants';
-import type { Plan } from './types';
-import type { AiFeatureProps } from './types';
+import type { Plan, AiFeatureProps } from './types';
 import type { SiteAIAssistantFeatureEndpointResponseProps } from '../../types';
 
 /**
  * Map the response from the `sites/$site/ai-assistant-feature`
  * endpoint to the AI Assistant feature props.
  * @param { SiteAIAssistantFeatureEndpointResponseProps } response - The response from the endpoint.
- * @returns { AiFeatureProps }                                       The AI Assistant feature props.
+ * @return { AiFeatureProps }                                       The AI Assistant feature props.
  */
 export function mapAiFeatureResponseToAiFeatureProps(
 	response: SiteAIAssistantFeatureEndpointResponseProps
@@ -49,6 +48,8 @@ export function mapAiFeatureResponseToAiFeatureProps(
 		currentTier: response[ 'current-tier' ],
 		nextTier: response[ 'next-tier' ],
 		tierPlansEnabled: !! response[ 'tier-plans-enabled' ],
+		costs: response.costs,
+		featuresControl: response[ 'features-control' ],
 	};
 }
 
@@ -77,7 +78,7 @@ const actions = {
 	/**
 	 * Thunk action to fetch the AI Assistant feature from the API.
 	 *
-	 * @returns {Function} The thunk action.
+	 * @return {Function} The thunk action.
 	 */
 	fetchAiAssistantFeature() {
 		return async ( { dispatch } ) => {
@@ -104,7 +105,7 @@ const actions = {
 	 * This thunk action is used to increase
 	 * the requests count for the current usage period.
 	 * @param {number} count - The number of requests to increase. Default is 1.
-	 * @returns {Function}     The thunk action.
+	 * @return {Function}     The thunk action.
 	 */
 	increaseAiAssistantRequestsCount( count: number = 1 ) {
 		return ( { dispatch } ) => {
@@ -123,7 +124,7 @@ const actions = {
 	 * the countdown value for the new async request.
 	 * When the countdown reaches 0, enqueue a new async request.
 	 *
-	 * @returns {Function} The thunk action.
+	 * @return {Function} The thunk action.
 	 */
 	decreaseAsyncRequestCountdownValue() {
 		return async ( { dispatch, select } ) => {
@@ -131,7 +132,7 @@ const actions = {
 
 			const asyncCoundown = select.getAsyncRequestCountdownValue();
 			if ( asyncCoundown <= 0 ) {
-				dispatch( actions.enqueueAiAssistantFeatureAyncRequest() );
+				dispatch( actions.enqueueAiAssistantFeatureAsyncRequest() );
 			}
 		};
 	},
@@ -140,12 +141,12 @@ const actions = {
 	 * This thunk action is used to enqueue a new async request.
 	 * If already exist an enqueue request, clear it and enqueue a new one.
 	 *
-	 * @returns {Function} The thunk action.
+	 * @return {Function} The thunk action.
 	 */
-	enqueueAiAssistantFeatureAyncRequest() {
+	enqueueAiAssistantFeatureAsyncRequest() {
 		return ( { dispatch } ) => {
 			// Check if there is already a timer running
-			dispatch.dequeueAiAssistantFeatureAyncRequest();
+			dispatch.dequeueAiAssistantFeatureAsyncRequest();
 
 			const contdownTimerId = setTimeout( () => {
 				dispatch( actions.fetchAiAssistantFeature() );
@@ -160,9 +161,9 @@ const actions = {
 	 * It will clear the timer if there is one,
 	 * canceling the enqueue async request.
 	 *
-	 * @returns {Function} The thunk action.
+	 * @return {Function} The thunk action.
 	 */
-	dequeueAiAssistantFeatureAyncRequest() {
+	dequeueAiAssistantFeatureAsyncRequest() {
 		return ( { dispatch, select } ) => {
 			dispatch( { type: ACTION_DEQUEUE_ASYNC_REQUEST, timerId: 0 } );
 

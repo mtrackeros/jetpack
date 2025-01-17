@@ -1,9 +1,10 @@
 <?php
 
+use Automattic\Jetpack_Boost\Lib\Minify;
 use Automattic\Jetpack_Boost\Lib\Minify\Config;
 use Automattic\Jetpack_Boost\Lib\Minify\Dependency_Path_Mapping;
+use Automattic\Jetpack_Boost\Lib\Minify\File_Paths;
 use Automattic\Jetpack_Boost\Lib\Minify\Utils;
-use tubalmartin\CssMin;
 
 function jetpack_boost_page_optimize_types() {
 	return array(
@@ -14,47 +15,22 @@ function jetpack_boost_page_optimize_types() {
 
 /**
  * Handle serving a minified / concatenated file from the virtual _jb_static dir.
+ *
+ * @return never
  */
 function jetpack_boost_page_optimize_service_request() {
 	$use_wp = defined( 'JETPACK_BOOST_CONCAT_USE_WP' ) && JETPACK_BOOST_CONCAT_USE_WP;
 	$utils  = new Utils( $use_wp );
 
-	$cache_dir = Config::get_cache_dir_path();
-	$use_cache = ! empty( $cache_dir );
-
-	// Ensure the cache directory exists.
-	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
-	if ( $use_cache && ! is_dir( $cache_dir ) && ! mkdir( $cache_dir, 0775, true ) ) {
-		$use_cache = false;
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log(
-				sprintf(
-				/* translators: a filesystem path to a directory */
-					__( "Disabling page-optimize cache. Unable to create cache directory '%s'.", 'jetpack-boost' ),
-					$cache_dir
-				)
-			);
-		}
+	// We handle the cache here, tell other caches not to.
+	if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+		define( 'DONOTCACHEPAGE', true );
 	}
 
-	// Ensure the cache directory is writable.
-	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable
-	if ( $use_cache && ( ! is_dir( $cache_dir ) || ! is_writable( $cache_dir ) || ! is_executable( $cache_dir ) ) ) {
-		$use_cache = false;
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log(
-				sprintf(
-				/* translators: a filesystem path to a directory */
-					__( "Disabling page-optimize cache. Unable to write to cache directory '%s'.", 'jetpack-boost' ),
-					$cache_dir
-				)
-			);
-		}
-	}
+	$use_cache = Config::can_use_cache();
 
 	if ( $use_cache ) {
+		$cache_dir = Config::get_cache_dir_path();
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
 		$request_uri      = isset( $_SERVER['REQUEST_URI'] ) ? $utils->unslash( $_SERVER['REQUEST_URI'] ) : '';
 		$request_uri_hash = md5( $request_uri );
@@ -73,9 +49,9 @@ function jetpack_boost_page_optimize_service_request() {
 
 			if ( file_exists( $cache_file_meta ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-				$meta = json_decode( file_get_contents( $cache_file_meta ) );
-				if ( null !== $meta && isset( $meta->headers ) ) {
-					foreach ( $meta->headers as $header ) {
+				$meta = json_decode( file_get_contents( $cache_file_meta ), ARRAY_A );
+				if ( ! empty( $meta ) && ! empty( $meta['headers'] ) ) {
+					foreach ( $meta['headers'] as $header ) {
 						header( $header );
 					}
 				}
@@ -84,6 +60,10 @@ function jetpack_boost_page_optimize_service_request() {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$etag = '"' . md5( file_get_contents( $cache_file ) ) . '"';
 
+			// Check if we're on Atomic and take advantage of the Atomic Edge Cache.
+			if ( defined( 'ATOMIC_CLIENT_ID' ) ) {
+				header( 'A8c-Edge-Cache: cache' );
+			}
 			header( 'X-Page-Optimize: cached' );
 			header( 'Cache-Control: max-age=' . 31536000 );
 			header( 'ETag: ' . $etag );
@@ -100,6 +80,10 @@ function jetpack_boost_page_optimize_service_request() {
 
 	foreach ( $headers as $header ) {
 		header( $header );
+	}
+	// Check if we're on Atomic and take advantage of the Atomic Edge Cache.
+	if ( defined( 'ATOMIC_CLIENT_ID' ) ) {
+		header( 'A8c-Edge-Cache: cache' );
 	}
 	header( 'X-Page-Optimize: uncached' );
 	header( 'Cache-Control: max-age=' . 31536000 );
@@ -133,7 +117,8 @@ function jetpack_boost_strip_parent_path( $parent_path, $path ) {
 }
 
 /**
- * Generate a combined and minified output for the current request.
+ * Generate a combined and minified output for the current request. This is run regardless of the
+ * type of content being fetched; JavaScript or CSS, so it must handle either.
  */
 function jetpack_boost_page_optimize_build_output() {
 	$use_wp = defined( 'JETPACK_BOOST_CONCAT_USE_WP' ) && JETPACK_BOOST_CONCAT_USE_WP;
@@ -165,30 +150,7 @@ function jetpack_boost_page_optimize_build_output() {
 
 	$args = substr( $args, strpos( $args, '?' ) + 1 );
 
-	// Detect paths with - in their filename - this implies a base64 encoded gzipped string for the file list.
-	// e.g.: /_jb_static/??-eJzTT8vP109KLNJLLi7W0QdyDEE8IK4CiVjn2hpZGluYmKcDABRMDPM=
-	if ( '-' === $args[0] ) {
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
-		$args = @gzuncompress( base64_decode( substr( $args, 1 ) ) );
-
-		// Invalid data, abort!
-		if ( false === $args ) {
-			jetpack_boost_page_optimize_status_exit( 400 );
-		}
-	}
-
-	// Handle comma separated list of files. e.g.:
-	// /foo/bar.css,/foo1/bar/baz.css?m=293847g
-	$version_string_pos = strpos( $args, '?' );
-	if ( false !== $version_string_pos ) {
-		$args = substr( $args, 0, $version_string_pos );
-	}
-
-	// /foo/bar.css,/foo1/bar/baz.css
-	$args = explode( ',', $args );
-	if ( ! $args ) {
-		jetpack_boost_page_optimize_status_exit( 400 );
-	}
+	$args = jetpack_boost_page_optimize_get_file_paths( $args );
 
 	// args contain something like array( '/foo/bar.css', '/foo1/bar/baz.css' )
 	if ( 0 === count( $args ) || count( $args ) > $concat_max_files ) {
@@ -208,12 +170,6 @@ function jetpack_boost_page_optimize_build_output() {
 	$last_modified = 0;
 	$pre_output    = '';
 	$output        = '';
-
-	$should_minify_css = Config::is_css_minify_enabled();
-
-	if ( $should_minify_css ) {
-		$css_minify = new CssMin\Minifier();
-	}
 
 	foreach ( $args as $uri ) {
 		$fullpath = jetpack_boost_page_optimize_get_path( $uri );
@@ -302,15 +258,20 @@ function jetpack_boost_page_optimize_build_output() {
 				);
 			}
 
-			if ( $should_minify_css ) {
-				$buf = $css_minify->run( $buf );
+			// If filename indicates it's already minified, don't minify it again.
+			if ( ! preg_match( '/\.min\.css$/', $fullpath ) ) {
+				// Minify CSS.
+				$buf = Minify::css( $buf );
 			}
-		}
-
-		if ( $jetpack_boost_page_optimize_types['js'] === $mime_type ) {
-			$output .= "$buf;\n";
-		} else {
 			$output .= "$buf";
+		} else {
+			// If filename indicates it's already minified, don't minify it again.
+			if ( ! preg_match( '/\.min\.js$/', $fullpath ) ) {
+				// Minify JS
+				$buf = Minify::js( $buf );
+			}
+
+			$output .= "$buf;\n";
 		}
 	}
 
@@ -329,9 +290,49 @@ function jetpack_boost_page_optimize_build_output() {
 	);
 }
 
+function jetpack_boost_page_optimize_get_file_paths( $args ) {
+	$paths = File_Paths::get( $args );
+	if ( $paths ) {
+		$args = $paths->get_paths();
+	} else {
+		// Kept for backward compatibility in case cached page is still referring to old formal asset URLs.
+
+		// It's a base64 encoded list of file path.
+		// e.g.: /_jb_static/??-eJzTT8vP109KLNJLLi7W0QdyDEE8IK4CiVjn2hpZGluYmKcDABRMDPM=
+		if ( '-' === $args[0] ) {
+
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
+			$args = @gzuncompress( base64_decode( substr( $args, 1 ) ) );
+		}
+
+		// It's an unencoded comma separated list of file paths.
+		// /foo/bar.css,/foo1/bar/baz.css?m=293847g
+		$version_string_pos = strpos( $args, '?' );
+		if ( false !== $version_string_pos ) {
+			$args = substr( $args, 0, $version_string_pos );
+		}
+		// /foo/bar.css,/foo1/bar/baz.css
+		$args = explode( ',', $args );
+	}
+
+	if ( ! is_array( $args ) || false === $args ) {
+		// Invalid data, abort!
+		jetpack_boost_page_optimize_status_exit( 400 );
+	}
+
+	return $args;
+}
+
+/**
+ * Exit with a given HTTP status code.
+ *
+ * @param int $status HTTP status code.
+ *
+ * @return never
+ */
 function jetpack_boost_page_optimize_status_exit( $status ) {
 	http_response_code( $status );
-	exit;
+	exit( 0 ); // This is a workaround, until a bug in phan is fixed - https://github.com/phan/phan/issues/4888
 }
 
 function jetpack_boost_page_optimize_get_mime_type( $file ) {

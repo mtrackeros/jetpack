@@ -1,27 +1,33 @@
 import { ThemeProvider } from '@automattic/jetpack-components';
-import { getJetpackData, isSimpleSite } from '@automattic/jetpack-shared-extension-utils';
+import {
+	getJetpackData,
+	isAtomicSite,
+	isSimpleSite,
+	useModuleStatus,
+} from '@automattic/jetpack-shared-extension-utils';
 import {
 	InnerBlocks,
 	InspectorControls,
 	URLInput,
-	__experimentalBlockVariationPicker as BlockVariationPicker, // eslint-disable-line wpcalypso/no-unsafe-wp-apis
-	__experimentalBlockPatternSetup as BlockPatternSetup, // eslint-disable-line wpcalypso/no-unsafe-wp-apis
+	useBlockProps,
+	__experimentalBlockVariationPicker as BlockVariationPicker, // eslint-disable-line @wordpress/no-unsafe-wp-apis
+	__experimentalBlockPatternSetup as BlockPatternSetup, // eslint-disable-line @wordpress/no-unsafe-wp-apis
 } from '@wordpress/block-editor';
 import { createBlock, registerBlockVariation } from '@wordpress/blocks';
 import {
-	BaseControl,
 	Button,
 	Modal,
 	PanelBody,
 	SelectControl,
 	TextareaControl,
 	TextControl,
+	Notice,
 } from '@wordpress/components';
 import { compose, withInstanceId } from '@wordpress/compose';
 import { withDispatch, withSelect } from '@wordpress/data';
 import { forwardRef, Fragment, useEffect, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import classnames from 'classnames';
+import clsx from 'clsx';
 import { filter, get, isArray, map } from 'lodash';
 import { childBlocks } from './child-blocks';
 import InspectorHint from './components/inspector-hint';
@@ -49,6 +55,7 @@ const ALLOWED_BLOCKS = [
 	'core/columns',
 	'core/group',
 	'core/heading',
+	'core/html',
 	'core/image',
 	'core/list',
 	'core/paragraph',
@@ -70,8 +77,6 @@ export const JetpackContactFormEdit = forwardRef(
 		{
 			attributes,
 			setAttributes,
-			siteTitle,
-			postTitle,
 			postAuthorEmail,
 			hasInnerBlocks,
 			replaceInnerBlocks,
@@ -84,10 +89,6 @@ export const JetpackContactFormEdit = forwardRef(
 			defaultVariation,
 			canUserInstallPlugins,
 			style,
-			isModuleActive,
-			isLoadingModules,
-			isChangingStatus,
-			updateJetpackModuleStatus,
 		},
 		ref
 	) => {
@@ -99,15 +100,18 @@ export const JetpackContactFormEdit = forwardRef(
 			customThankyouMessage,
 			customThankyouRedirect,
 			jetpackCRM,
-			formTitle,
 			salesforceData,
 		} = attributes;
-
 		const [ isPatternsModalOpen, setIsPatternsModalOpen ] = useState( false );
 
-		const formClassnames = classnames( className, 'jetpack-contact-form', {
+		const blockProps = useBlockProps();
+		const { isLoadingModules, isChangingStatus, isModuleActive, changeStatus } =
+			useModuleStatus( 'contact-form' );
+
+		const formClassnames = clsx( className, 'jetpack-contact-form', {
 			'is-placeholder': ! hasInnerBlocks && registerBlockVariation,
 		} );
+
 		const isSalesForceExtensionEnabled =
 			!! window?.Jetpack_Editor_Initial_State?.available_blocks[
 				'contact-form/salesforce-lead-form'
@@ -155,17 +159,6 @@ export const JetpackContactFormEdit = forwardRef(
 			// eslint-disable-next-line react-hooks/exhaustive-deps
 		}, [] );
 
-		useEffect( () => {
-			if ( to === undefined && postAuthorEmail ) {
-				setAttributes( { to: postAuthorEmail } );
-			}
-
-			if ( subject === undefined && siteTitle !== undefined && postTitle !== undefined ) {
-				const emailSubject = '[' + siteTitle + '] ' + postTitle;
-				setAttributes( { subject: emailSubject } );
-			}
-		}, [ to, postAuthorEmail, subject, siteTitle, postTitle, setAttributes ] );
-
 		const renderSubmissionSettings = () => {
 			return (
 				<>
@@ -181,6 +174,8 @@ export const JetpackContactFormEdit = forwardRef(
 							{ label: __( 'Redirect to another webpage', 'jetpack-forms' ), value: 'redirect' },
 						] }
 						onChange={ newMessage => setAttributes( { customThankyou: newMessage } ) }
+						__nextHasNoMarginBottom={ true }
+						__next40pxDefaultSize={ true }
 					/>
 
 					{ 'redirect' !== customThankyou && (
@@ -189,6 +184,8 @@ export const JetpackContactFormEdit = forwardRef(
 							value={ customThankyouHeading }
 							placeholder={ __( 'Your message has been sent', 'jetpack-forms' ) }
 							onChange={ newHeading => setAttributes( { customThankyouHeading: newHeading } ) }
+							__nextHasNoMarginBottom={ true }
+							__next40pxDefaultSize={ true }
 						/>
 					) }
 
@@ -198,21 +195,19 @@ export const JetpackContactFormEdit = forwardRef(
 							value={ customThankyouMessage }
 							placeholder={ __( 'Thank you for your submission!', 'jetpack-forms' ) }
 							onChange={ newMessage => setAttributes( { customThankyouMessage: newMessage } ) }
+							__nextHasNoMarginBottom={ true }
 						/>
 					) }
 
 					{ 'redirect' === customThankyou && (
-						<BaseControl
-							label={ __( 'Redirect Address', 'jetpack-forms' ) }
-							id={ `contact-form-${ instanceId }-thankyou-url` }
-						>
+						<div>
 							<URLInput
-								id={ `contact-form-${ instanceId }-thankyou-url` }
+								label={ __( 'Redirect Address', 'jetpack-forms' ) }
 								value={ customThankyouRedirect }
 								className="jetpack-contact-form__thankyou-redirect-url"
 								onChange={ newURL => setAttributes( { customThankyouRedirect: newURL } ) }
 							/>
-						</BaseControl>
+						</div>
 					) }
 				</>
 			);
@@ -276,83 +271,91 @@ export const JetpackContactFormEdit = forwardRef(
 			);
 		};
 
+		let elt;
+
 		if ( ! isModuleActive ) {
 			if ( isLoadingModules ) {
-				return <ContactFormSkeletonLoader />;
+				elt = <ContactFormSkeletonLoader />;
+			} else {
+				elt = (
+					<ContactFormPlaceholder
+						changeStatus={ changeStatus }
+						isModuleActive={ isModuleActive }
+						isLoading={ isChangingStatus }
+					/>
+				);
 			}
-			return (
-				<ContactFormPlaceholder
-					changeStatus={ val => {
-						updateJetpackModuleStatus( {
-							name: 'contact-form',
-							active: val,
-						} );
-					} }
-					isModuleActive={ isModuleActive }
-					isLoading={ isChangingStatus }
-				/>
+		} else if ( ! hasInnerBlocks && registerBlockVariation ) {
+			elt = renderVariationPicker();
+		} else {
+			elt = (
+				<>
+					<InspectorControls>
+						{ ! attributes.formTitle && (
+							<PanelBody>
+								<Notice status="warning" isDismissible={ false }>
+									{ __(
+										'Add a heading inside the form or before it to help everybody identify it.',
+										'jetpack-forms'
+									) }
+								</Notice>{ ' ' }
+							</PanelBody>
+						) }
+						<PanelBody title={ __( 'Manage Responses', 'jetpack-forms' ) }>
+							<JetpackManageResponsesSettings setAttributes={ setAttributes } />
+						</PanelBody>
+						<PanelBody title={ __( 'Submission Settings', 'jetpack-forms' ) } initialOpen={ false }>
+							{ renderSubmissionSettings() }
+						</PanelBody>
+						<PanelBody title={ __( 'Email Connection', 'jetpack-forms' ) }>
+							<JetpackEmailConnectionSettings
+								emailAddress={ to }
+								emailSubject={ subject }
+								instanceId={ instanceId }
+								postAuthorEmail={ postAuthorEmail }
+								setAttributes={ setAttributes }
+							/>
+						</PanelBody>
+
+						{ isSalesForceExtensionEnabled && salesforceData?.sendToSalesforce && (
+							<SalesforceLeadFormSettings
+								salesforceData={ salesforceData }
+								setAttributes={ setAttributes }
+								instanceId={ instanceId }
+							/>
+						) }
+						{ ! ( isSimpleSite() || isAtomicSite() ) && (
+							<Fragment>
+								{ canUserInstallPlugins && (
+									<PanelBody
+										title={ __( 'CRM Connection', 'jetpack-forms' ) }
+										initialOpen={ false }
+									>
+										<CRMIntegrationSettings
+											jetpackCRM={ jetpackCRM }
+											setAttributes={ setAttributes }
+										/>
+									</PanelBody>
+								) }
+								<PanelBody title={ __( 'Creative Mail', 'jetpack-forms' ) } initialOpen={ false }>
+									<NewsletterIntegrationSettings />
+								</PanelBody>
+							</Fragment>
+						) }
+					</InspectorControls>
+
+					<div className={ formClassnames } style={ style } ref={ ref }>
+						<InnerBlocks
+							allowedBlocks={ ALLOWED_BLOCKS }
+							prioritizedInserterBlocks={ PRIORITIZED_INSERTER_BLOCKS }
+							templateInsertUpdatesSelection={ false }
+						/>
+					</div>
+				</>
 			);
 		}
 
-		if ( ! hasInnerBlocks && registerBlockVariation ) {
-			return renderVariationPicker();
-		}
-
-		return (
-			<>
-				<InspectorControls>
-					<PanelBody title={ __( 'Manage Responses', 'jetpack-forms' ) }>
-						<JetpackManageResponsesSettings
-							formTitle={ formTitle }
-							setAttributes={ setAttributes }
-						/>
-					</PanelBody>
-					<PanelBody title={ __( 'Submission Settings', 'jetpack-forms' ) } initialOpen={ false }>
-						{ renderSubmissionSettings() }
-					</PanelBody>
-					<PanelBody title={ __( 'Email Connection', 'jetpack-forms' ) }>
-						<JetpackEmailConnectionSettings
-							emailAddress={ to }
-							emailSubject={ subject }
-							instanceId={ instanceId }
-							postAuthorEmail={ postAuthorEmail }
-							setAttributes={ setAttributes }
-						/>
-					</PanelBody>
-
-					{ isSalesForceExtensionEnabled && salesforceData?.sendToSalesforce && (
-						<SalesforceLeadFormSettings
-							salesforceData={ salesforceData }
-							setAttributes={ setAttributes }
-							instanceId={ instanceId }
-						/>
-					) }
-					{ ! isSimpleSite() && (
-						<Fragment>
-							{ canUserInstallPlugins && (
-								<PanelBody title={ __( 'CRM Connection', 'jetpack-forms' ) } initialOpen={ false }>
-									<CRMIntegrationSettings
-										jetpackCRM={ jetpackCRM }
-										setAttributes={ setAttributes }
-									/>
-								</PanelBody>
-							) }
-							<PanelBody title={ __( 'Creative Mail', 'jetpack-forms' ) } initialOpen={ false }>
-								<NewsletterIntegrationSettings />
-							</PanelBody>
-						</Fragment>
-					) }
-				</InspectorControls>
-
-				<div className={ formClassnames } style={ style } ref={ ref }>
-					<InnerBlocks
-						allowedBlocks={ ALLOWED_BLOCKS }
-						prioritizedInserterBlocks={ PRIORITIZED_INSERTER_BLOCKS }
-						templateInsertUpdatesSelection={ false }
-					/>
-				</div>
-			</>
-		);
+		return <div { ...blockProps }>{ elt }</div>;
 	}
 );
 
@@ -367,13 +370,11 @@ export default compose( [
 		const { getBlockType, getBlockVariations, getDefaultBlockVariation } = select( 'core/blocks' );
 		const { getBlocks } = select( 'core/block-editor' );
 		const { getEditedPostAttribute } = select( 'core/editor' );
-		const { getSite, getUser, canUser } = select( 'core' );
-		const { isModuleActive, areModulesLoading, areModulesUpdating } = select( 'jetpack-modules' );
+		const { getUser, canUser } = select( 'core' );
 		const innerBlocks = getBlocks( props.clientId );
 
 		const authorId = getEditedPostAttribute( 'author' );
 		const authorEmail = authorId && getUser( authorId ) && getUser( authorId ).email;
-		const postTitle = getEditedPostAttribute( 'title' );
 		const canUserInstallPlugins = canUser( 'create', 'plugins' );
 
 		const submitButton = innerBlocks.find( block => block.name === 'jetpack/button' );
@@ -390,18 +391,12 @@ export default compose( [
 
 			innerBlocks,
 			hasInnerBlocks: innerBlocks.length > 0,
-			siteTitle: get( getSite && getSite(), [ 'title' ] ),
-			postTitle: postTitle,
 			postAuthorEmail: authorEmail,
-			isModuleActive: isModuleActive( 'contact-form' ),
-			isLoadingModules: areModulesLoading(),
-			isChangingStatus: areModulesUpdating(),
 		};
 	} ),
 	withDispatch( dispatch => {
 		const { replaceInnerBlocks, selectBlock } = dispatch( 'core/block-editor' );
-		const { updateJetpackModuleStatus } = dispatch( 'jetpack-modules' );
-		return { replaceInnerBlocks, selectBlock, updateJetpackModuleStatus };
+		return { replaceInnerBlocks, selectBlock };
 	} ),
 	withInstanceId,
 	withThemeProvider,

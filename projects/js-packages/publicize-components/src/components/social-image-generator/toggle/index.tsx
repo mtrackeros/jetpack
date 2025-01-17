@@ -1,10 +1,8 @@
 import { ToggleControl } from '@automattic/jetpack-components';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { useCallback } from '@wordpress/element';
-import { useEffect } from '@wordpress/element';
 import React from 'react';
-import { SOCIAL_STORE_ID } from '../../../social-store';
-import { SocialStoreSelectors } from '../../../types/types';
+import { store as socialStore } from '../../../social-store';
 
 type SocialImageGeneratorToggleProps = {
 	/**
@@ -16,46 +14,35 @@ type SocialImageGeneratorToggleProps = {
 	 * The class name to add to the toggle.
 	 */
 	toggleClass?: string;
-
-	/**
-	 * Whether or not to refresh the settings.
-	 */
-	shouldRefresh?: boolean;
 };
 
 /**
  * A button toggle wrapper for enabling/disabling the Social Image Generator feature.
  *
  * @param {SocialImageGeneratorToggleProps} props - Component props.
- * @returns {React.ReactElement} - JSX.Element
+ * @return {React.ReactElement} - JSX.Element
  */
 const SocialImageGeneratorToggle: React.FC< SocialImageGeneratorToggleProps > = ( {
 	toggleClass,
 	children,
-	shouldRefresh = false,
 } ) => {
-	const refreshSettings = useDispatch( SOCIAL_STORE_ID ).refreshSocialImageGeneratorSettings;
-
-	useEffect( () => {
-		shouldRefresh && refreshSettings();
-	}, [ refreshSettings, shouldRefresh ] );
-
 	const { isEnabled, isUpdating } = useSelect( select => {
-		const store = select( SOCIAL_STORE_ID ) as SocialStoreSelectors;
+		const store = select( socialStore );
+
 		return {
-			isEnabled: store.isSocialImageGeneratorEnabled(),
-			isUpdating: store.isUpdatingSocialImageGeneratorSettings(),
+			isEnabled: store.getSocialImageGeneratorConfig().enabled,
+			isUpdating: store.isSavingSiteSettings(),
 		};
 	}, [] );
 
-	const updateOptions = useDispatch( SOCIAL_STORE_ID ).updateSocialImageGeneratorSettings;
+	const { updateSocialImageGeneratorConfig } = useDispatch( socialStore );
 
 	const toggleStatus = useCallback( () => {
 		const newOption = {
 			enabled: ! isEnabled,
 		};
-		updateOptions( newOption );
-	}, [ isEnabled, updateOptions ] );
+		updateSocialImageGeneratorConfig( newOption );
+	}, [ isEnabled, updateSocialImageGeneratorConfig ] );
 
 	return (
 		<ToggleControl

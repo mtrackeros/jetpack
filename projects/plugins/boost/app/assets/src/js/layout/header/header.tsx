@@ -1,10 +1,10 @@
-import classNames from 'classnames';
+import clsx from 'clsx';
 import React from 'react';
 import styles from './header.module.scss';
 import { BackButton } from '$features/ui';
-import { navigate } from '$lib/utils/navigate';
 import ChevronRight from '$svg/chevron-right';
 import Logo from '$svg/logo';
+import { useNavigate } from 'react-router-dom';
 
 type HeaderProps = {
 	subPageTitle?: string;
@@ -12,12 +12,13 @@ type HeaderProps = {
 };
 
 const Header = ( { subPageTitle = '', children }: HeaderProps ) => {
+	const navigate = useNavigate();
 	return (
-		<div className={ classNames( styles.header ) }>
-			<div className={ classNames( 'jb-container', styles.masthead ) }>
-				<div className={ classNames( styles[ 'nav-area' ] ) }>
+		<div className={ clsx( styles.header ) }>
+			<div className={ clsx( 'jb-container', styles.masthead ) }>
+				<div className={ clsx( styles[ 'nav-area' ] ) }>
 					<div
-						className={ classNames( styles.logo ) }
+						className={ clsx( styles.logo ) }
 						onClick={ () => navigate( '/' ) }
 						onKeyDown={ event => {
 							if ( event.key === 'Enter' || event.key === ' ' ) {
@@ -32,10 +33,10 @@ const Header = ( { subPageTitle = '', children }: HeaderProps ) => {
 
 					{ subPageTitle !== '' && (
 						<>
-							<div className={ classNames( styles.chevron ) }>
+							<div className={ clsx( styles.chevron ) }>
 								<ChevronRight />
 							</div>
-							<div className={ classNames( styles.subpage ) }>{ subPageTitle }</div>
+							<div className={ clsx( styles.subpage ) }>{ subPageTitle }</div>
 						</>
 					) }
 				</div>

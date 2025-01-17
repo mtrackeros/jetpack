@@ -7,35 +7,21 @@
 
 namespace Automattic\Jetpack\Forms\ContactForm;
 
+use DOMDocument;
+use DOMElement;
 use WorDBless\BaseTestCase;
 use WorDBless\Posts;
 
 /**
  * Test class for Contact_Form
  *
- * @covers Contact_Form
+ * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form
  */
 class WP_Test_Contact_Form extends BaseTestCase {
 
 	private $post;
 
 	private $plugin;
-
-	/**
-	 * Fallback for missing assertStringContainsString in lower PHPUnit versions.
-	 *
-	 * @param  string $expected_value
-	 * @param  string $value
-	 * @param  string $message
-	 * @return boolean
-	 */
-	public static function assertStringContains( $expected_value, $value, $message = '' ) {
-		if ( method_exists( get_parent_class( self::class ), 'assertStringContainsString' ) ) {
-			return parent::assertStringContainsString( $expected_value, $value, $message );
-		}
-
-		return parent::assertContains( $expected_value, $value, $message );
-	}
 
 	/**
 	 * Sets up the test environment before the class tests begin.
@@ -145,7 +131,30 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		// Default metadata should be saved.
 		$email = get_post_meta( $submission->ID, '_feedback_email', true );
 		$this->assertEquals( 'john <john@example.com>', $email['to'][0] );
-		$this->assertStringContains( 'IP Address: 127.0.0.1', $email['message'] );
+		$this->assertStringContainsString( 'IP Address: 127.0.0.1', $email['message'] );
+	}
+
+	/**
+	 * Tests that the submission as a whole will produce something in the
+	 * database when required information is provided.
+	 *
+	 * @author tonykova
+	 */
+	public function test_process_submission_will_not_store_ip() {
+		add_filter( 'jetpack_contact_form_forget_ip_address', '__return_true' );
+		$form   = new Contact_Form( array() );
+		$result = $form->process_submission();
+
+		// Processing should be successful and produce the success message.
+		$this->assertTrue( is_string( $result ) );
+
+		$feedback_id = end( Posts::init()->posts )->ID;
+		$submission  = get_post( $feedback_id );
+
+		// Default metadata should be saved.
+		$email = get_post_meta( $submission->ID, '_feedback_email', true );
+		$this->assertStringNotContainsString( 'IP Address', $email['message'] );
+		remove_all_filters( 'jetpack_contact_form_forget_ip_address' );
 	}
 
 	/**
@@ -211,7 +220,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		$this->assertEquals( 'feedback', $submission->post_type, 'Post type doesn\'t match' );
 
 		// Default metadata should be saved.
-		$this->assertStringContains( 'SUBJECT: I\\\'m sorry, but the party\\\'s over', $submission->post_content, 'The stored subject didn\'t match the given' );
+		$this->assertStringContainsString( 'SUBJECT: I\\\'m sorry, but the party\\\'s over', $submission->post_content, 'The stored subject didn\'t match the given' );
 	}
 
 	/**
@@ -239,7 +248,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		$submission  = get_post( $feedback_id );
 		$this->assertEquals( 'feedback', $submission->post_type, 'Post type doesn\'t match' );
 
-		$this->assertStringContains( 'SUBJECT: Hello John Doe from Kansas!', $submission->post_content, 'The stored subject didn\'t match the given' );
+		$this->assertStringContainsString( 'SUBJECT: Hello John Doe from Kansas!', $submission->post_content, 'The stored subject didn\'t match the given' );
 	}
 
 	/**
@@ -266,7 +275,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		$submission  = get_post( $feedback_id );
 		$this->assertEquals( 'feedback', $submission->post_type, 'Post type doesn\'t match' );
 
-		$this->assertStringContains( 'SUBJECT: Hello John Doe from Kansas!', $submission->post_content, 'The stored subject didn\'t match the given' );
+		$this->assertStringContainsString( 'SUBJECT: Hello John Doe from Kansas!', $submission->post_content, 'The stored subject didn\'t match the given' );
 	}
 
 	/**
@@ -293,7 +302,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		$submission  = get_post( $feedback_id );
 		$this->assertEquals( 'feedback', $submission->post_type, 'Post type doesn\'t match' );
 
-		$this->assertStringContains( 'SUBJECT: Hello John Doe from Kansas!', $submission->post_content, 'The stored subject didn\'t match the given' );
+		$this->assertStringContainsString( 'SUBJECT: Hello John Doe from Kansas!', $submission->post_content, 'The stored subject didn\'t match the given' );
 	}
 
 	/**
@@ -324,10 +333,10 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		$submission  = get_post( $feedback_id );
 		$this->assertEquals( 'feedback', $submission->post_type, 'Post type doesn\'t match' );
 
-		$this->assertStringContains( '\"1_Name\":\"John Doe\"', $submission->post_content, 'Post content did not contain the name label and/or value' );
-		$this->assertStringContains( '\"2_Dropdown\":\"First option\"', $submission->post_content, 'Post content did not contain the dropdown label and/or value' );
-		$this->assertStringContains( '\"3_Radio\":\"Second option\"', $submission->post_content, 'Post content did not contain the radio button label and/or value' );
-		$this->assertStringContains( '\"4_Text\":\"Texty text\"', $submission->post_content, 'Post content did not contain the text field label and/or value' );
+		$this->assertStringContainsString( '\"1_Name\":\"John Doe\"', $submission->post_content, 'Post content did not contain the name label and/or value' );
+		$this->assertStringContainsString( '\"2_Dropdown\":\"First option\"', $submission->post_content, 'Post content did not contain the dropdown label and/or value' );
+		$this->assertStringContainsString( '\"3_Radio\":\"Second option\"', $submission->post_content, 'Post content did not contain the radio button label and/or value' );
+		$this->assertStringContainsString( '\"4_Text\":\"Texty text\"', $submission->post_content, 'Post content did not contain the text field label and/or value' );
 	}
 
 	/**
@@ -561,19 +570,19 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 *                    subject, message, headers, and attachments values.
 	 */
 	public function pre_test_process_submission_labels_message_as_spam_in_subject_if_marked_as_spam_with_true_and_sending_spam( $args ) {
-		$this->assertStringContains( '***SPAM***', $args['subject'] );
+		$this->assertStringContainsString( '***SPAM***', $args['subject'] );
 	}
 
 	/**
 	 * Tests that 'grunion_delete_old_spam()' deletes an old post that is marked as spam.
 	 *
 	 * @author tonykova
-	 * @covers Util::grunion_delete_old_spam
+	 * @covers \Automattic\Jetpack\Forms\ContactForm\Util::grunion_delete_old_spam
 	 */
 	public function test_grunion_delete_old_spam_deletes_an_old_post_marked_as_spam() {
-		// grunion_Delete_old_spam performs direct DB queries which cannot be tested outisde of a working WP install.
+		// grunion_Delete_old_spam performs direct DB queries which cannot be tested outside of a working WP install.
 		$this->markTestSkipped();
-
+		// @phan-suppress-next-line PhanPluginUnreachableCode
 		$post_id = wp_insert_post(
 			array(
 				'post_type'     => 'feedback',
@@ -590,7 +599,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 * Tests that 'grunion_delete_old_spam' does not delete a new post that is marked as spam.
 	 *
 	 * @author tonykova
-	 * @covers ::grunion_delete_old_spam
+	 * @covers \Automattic\Jetpack\Forms\ContactForm\Util::grunion_delete_old_spam
 	 */
 	public function test_grunion_delete_old_spam_does_not_delete_a_new_post_marked_as_spam() {
 		$post_id = wp_insert_post(
@@ -610,7 +619,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 * Tests that token is left intact when there is not matching field.
 	 *
 	 * @author tonykova
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 */
 	public function test_token_left_intact_when_no_matching_field() {
 		$plugin       = Contact_Form_Plugin::init();
@@ -626,7 +635,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 * Tests that token is replaced with an empty string when there is not value in field.
 	 *
 	 * @author tonykova
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 */
 	public function test_replaced_with_empty_string_when_no_value_in_field() {
 		$plugin       = Contact_Form_Plugin::init();
@@ -642,7 +651,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 * Tests that token in curly brackets is replaced with the value when the name has whitespace.
 	 *
 	 * @author tonykova
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 */
 	public function test_token_can_replace_entire_subject_with_token_field_whose_name_has_whitespace() {
 		$plugin       = Contact_Form_Plugin::init();
@@ -658,7 +667,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 * Tests that token with curly brackets is replaced with value.
 	 *
 	 * @author tonykova
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 */
 	public function test_token_with_curly_brackets_can_be_replaced() {
 		$plugin       = Contact_Form_Plugin::init();
@@ -706,7 +715,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Tests shortcode with commas and brackets.
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_array_values_with_commas_and_brackets() {
 		$shortcode = "[contact-field type='radio' options='\"foo\",bar&#044; baz,&#091;b&#092;rackets&#093;' label='fun &#093;&#091; times'/]";
@@ -717,7 +726,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Tests Gutenblock input with commas and brackets.
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_array_values_with_commas_and_brackets_from_gutenblock() {
 		$attr = array(
@@ -732,7 +741,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for text field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_text_field_renders_as_expected() {
 		$attributes = array(
@@ -751,7 +760,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for email field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_email_field_renders_as_expected() {
 		$attributes = array(
@@ -770,7 +779,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for url field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_url_field_renders_as_expected() {
 		$attributes = array(
@@ -789,7 +798,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for telephone field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_telephone_field_renders_as_expected() {
 		$attributes = array(
@@ -808,7 +817,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for date field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_date_field_renders_as_expected() {
 		$attributes = array(
@@ -818,6 +827,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 			'default'     => 'foo',
 			'placeholder' => 'PLACEHOLDTHIS!',
 			'id'          => 'funID',
+			'format'      => '(YYYY-MM-DD)',
 		);
 
 		$expected_attributes = array_merge( $attributes, array( 'input_type' => 'text' ) );
@@ -827,7 +837,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for textarea field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_textarea_field_renders_as_expected() {
 		$attributes = array(
@@ -846,7 +856,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for checkbox field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_checkbox_field_renders_as_expected() {
 		$attributes = array(
@@ -865,7 +875,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Multiple fields
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_checkbox_multiple_field_renders_as_expected() {
 		$attributes = array(
@@ -885,7 +895,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for radio field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_radio_field_renders_as_expected() {
 		$attributes = array(
@@ -905,7 +915,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test for select field_renders
 	 *
-	 * @covers Contact_Form_Field
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Field
 	 */
 	public function test_make_sure_select_field_renders_as_expected() {
 		$attributes = array(
@@ -943,7 +953,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 * @return DOMElement The first div element.
 	 */
 	public function getCommonDiv( $html ) {
-		$doc = new \DOMDocument();
+		$doc = new DOMDocument();
 		$doc->loadHTML( $html );
 		return $this->getFirstElement( $doc, 'div' );
 	}
@@ -951,15 +961,16 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Gets the first element in the given DOMDocument object.
 	 *
-	 * @param DOMDocument $dom The DOMDocument object.
-	 * @param string      $tag The tag name.
-	 * @param int         $index The index.
+	 * @param DOMDocument|DOMElement $dom The DOMDocument object.
+	 * @param string                 $tag The tag name.
+	 * @param int                    $index The index.
 	 *
-	 * @return DOMElement The first element with the given tag.
+	 * @return DOMElement|null The first element with the given tag.
 	 */
 	public function getFirstElement( $dom, $tag, $index = 0 ) {
 		$elements = $dom->getElementsByTagName( $tag );
-		return $elements->item( $index );
+		$element  = $elements->item( $index );
+		return $element instanceof DOMElement ? $element : null;
 	}
 
 	/**
@@ -974,10 +985,6 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		}
 
 		$css_class = "grunion-field-{$attributes['type']}-wrap {$attributes['class']}-wrap grunion-field-wrap";
-
-		if ( 'select' === $attributes['type'] ) {
-			$css_class .= ' contact-form-dropdown-wrap ui-front';
-		}
 
 		$this->assertEquals(
 			$wrapper_div->getAttribute( 'class' ),
@@ -995,10 +1002,12 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	 *                                                       and radio buttons.
 	 */
 	public function assertFieldLabel( $wrapper_div, $attributes, $tag_name = 'label' ) {
-		$label = $this->getFirstElement( $wrapper_div, $tag_name );
+		$type     = $attributes['type'];
+		$label    = $this->getFirstElement( $wrapper_div, $tag_name );
+		$expected = 'date' === $type ? $attributes['label'] . ' ' . $attributes['format'] : $attributes['label'];
 
 		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-		$this->assertEquals( trim( $label->nodeValue ), $attributes['label'], 'Label is not what we expect it to be...' );
+		$this->assertEquals( $expected, trim( (string) $label->nodeValue ), 'Label is not what we expect it to be...' );
 	}
 
 	/**
@@ -1080,6 +1089,9 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		$label = $wrapper_div->getElementsByTagName( 'label' )->item( 0 );
 		$input = $wrapper_div->getElementsByTagName( 'input' )->item( 0 );
 
+		$this->assertInstanceOf( DOMElement::class, $label );
+		$this->assertInstanceOf( DOMElement::class, $input );
+
 		$this->assertEquals( $label->getAttribute( 'class' ), 'grunion-field-label ' . $attributes['type'], 'label class doesn\'t match' );
 
 		$this->assertEquals( $input->getAttribute( 'name' ), $attributes['id'], 'Input name doesn\'t match' );
@@ -1123,7 +1135,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 				'label for does not equal input name!'
 			);
 
-			$this->assertEquals( $select->getAttribute( 'class' ), 'select ' . $attributes['class'] . ' grunion-field contact-form-dropdown', ' select class does not match expected' );
+			$this->assertEquals( $select->getAttribute( 'class' ), 'select ' . $attributes['class'] . ' grunion-field', ' select class does not match expected' );
 
 			// Options.
 			$options = $select->getElementsByTagName( 'option' );
@@ -1132,6 +1144,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 			$this->assertCount( $n, $attributes['values'], 'Number of inputs doesn\'t match number of values' );
 			for ( $i = 0; $i < $n; $i++ ) {
 				$option = $options->item( $i );
+				$this->assertInstanceOf( DOMElement::class, $option );
 				$this->assertEquals( $option->getAttribute( 'value' ), $attributes['values'][ $i ], 'Input value doesn\'t match' );
 				if ( 0 === $i ) {
 					$this->assertEquals( 'selected', $option->getAttribute( 'selected' ), 'Input is not selected' );
@@ -1156,8 +1169,8 @@ class WP_Test_Contact_Form extends BaseTestCase {
 				//phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 				$this->assertEquals( $item_label->nodeValue, $attributes['options'][ $i ] );
 
-				//phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-				$input = $item_label->parentNode->getElementsByTagName( 'input' )->item( 0 );
+				// @phan-suppress-next-line PhanUndeclaredMethod -- parentElement was only added in PHP 8.3, and Phan can't know that parentNode will be an element.
+				$input = $item_label->parentNode->getElementsByTagName( 'input' )->item( 0 ); //phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 				$this->assertEquals( $input->getAttribute( 'type' ), $attributes['input_type'], 'Type doesn\'t match' );
 				if ( 'radio' === $attributes['input_type'] ) {
 					$this->assertEquals( $input->getAttribute( 'name' ), $attributes['id'], 'Input name doesn\'t match' );
@@ -1195,7 +1208,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test get_export_data_for_posts with fully vaid data input.
 	 *
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 * @group csvexport
 	 */
 	public function test_get_export_data_for_posts_fully_valid_data() {
@@ -1205,7 +1218,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		 * @var Contact_Form_Plugin $mock
 		 */
 		$mock = $this->getMockBuilder( Contact_Form_Plugin::class )
-			->setMethods(
+			->onlyMethods(
 				array(
 					'get_post_meta_for_csv_export',
 					'get_parsed_field_contents_of_post',
@@ -1315,7 +1328,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test get_export_data_for_posts with single invalid entry for post meta
 	 *
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 * @group csvexport
 	 */
 	public function test_get_export_data_for_posts_invalid_single_entry_meta() {
@@ -1325,7 +1338,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		 * @var Contact_Form_Plugin $mock
 		 * */
 		$mock = $this->getMockBuilder( Contact_Form_Plugin::class )
-			->setMethods(
+			->onlyMethods(
 				array(
 					'get_post_meta_for_csv_export',
 					'get_parsed_field_contents_of_post',
@@ -1420,7 +1433,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test get_export_data_for_posts with invalid all entries for post meta
 	 *
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 * @group csvexport
 	 */
 	public function test_get_export_data_for_posts_invalid_all_entries_meta() {
@@ -1430,7 +1443,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		 * @var Contact_Form_Plugin $mock
 		 */
 		$mock = $this->getMockBuilder( Contact_Form_Plugin::class )
-			->setMethods(
+			->onlyMethods(
 				array(
 					'get_post_meta_for_csv_export',
 					'get_parsed_field_contents_of_post',
@@ -1510,7 +1523,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test get_export_data_for_posts with single invalid entry for parsed fields.
 	 *
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 * @group csvexport
 	 */
 	public function test_get_export_data_for_posts_single_invalid_entry_for_parse_fields() {
@@ -1520,7 +1533,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		 * @var Contact_Form_Plugin $mock
 		 * */
 		$mock = $this->getMockBuilder( Contact_Form_Plugin::class )
-			->setMethods(
+			->onlyMethods(
 				array(
 					'get_post_meta_for_csv_export',
 					'get_parsed_field_contents_of_post',
@@ -1623,7 +1636,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test get_export_data_for_posts with all entries for parsed fields invalid.
 	 *
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 * @group csvexport
 	 */
 	public function test_get_export_data_for_posts_all_entries_for_parse_fields_invalid() {
@@ -1633,7 +1646,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 		 * @var Contact_Form_Plugin $mock
 		 */
 		$mock = $this->getMockBuilder( Contact_Form_Plugin::class )
-			->setMethods(
+			->onlyMethods(
 				array(
 					'get_post_meta_for_csv_export',
 					'get_parsed_field_contents_of_post',
@@ -1666,7 +1679,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	/**
 	 * Test map_parsed_field_contents_of_post_to_field_names
 	 *
-	 * @covers Contact_Form_Plugin
+	 * @covers Automattic\Jetpack\Forms\ContactForm\Contact_Form_Plugin
 	 * @group csvexport
 	 */
 	public function test_map_parsed_field_contents_of_post_to_field_names() {
@@ -1702,7 +1715,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	public function test_personal_data_exporter() {
 		// Contact_Form_Plugin::personal_data_exporter uses `get_posts` internally making it currently untestable outside of a WP environment.
 		$this->markTestSkipped();
-
+		// @phan-suppress-next-line PhanPluginUnreachableCode
 		$this->add_field_values(
 			array(
 				'name'     => 'John Doe',
@@ -1769,7 +1782,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	public function test_personal_data_eraser() {
 		// Contact_Form_Plugin::personal_data_exporter uses `get_posts` internally making it currently untestable outside of a WP environment.
 		$this->markTestSkipped();
-
+		// @phan-suppress-next-line PhanPluginUnreachableCode
 		$this->add_field_values(
 			array(
 				'name'  => 'John Doe',
@@ -1809,7 +1822,7 @@ class WP_Test_Contact_Form extends BaseTestCase {
 	public function test_personal_data_eraser_pagination() {
 		// Contact_Form_Plugin::personal_data_exporter uses `get_posts` internally making it currently untestable outside of a WP environment.
 		$this->markTestSkipped();
-
+		// @phan-suppress-next-line PhanPluginUnreachableCode
 		$this->add_field_values(
 			array(
 				'name'  => 'Jane Doe',

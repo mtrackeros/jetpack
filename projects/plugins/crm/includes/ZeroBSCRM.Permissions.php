@@ -548,49 +548,41 @@ function zeroBSCRM_addUserRoles() { // phpcs:ignore WordPress.NamingConventions.
 		return array();
 	}
 
+/**
+ * Determine if the current user is allowed to manage contacts.
+ *
+ * @param int $obj_type_id Object type ID.
+ *
+ * @return bool
+ */
+function zeroBSCRM_permsObjType( $obj_type_id = -1 ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
 
-	// takes an objtypeid e.g. 1 = ZBS_TYPE_CONTACT
-	// ... then checks current user has access to that type/area
-	function zeroBSCRM_permsObjType($objTypeID=-1){
+	switch ( $obj_type_id ) {
+		case ZBS_TYPE_CONTACT:
+		case ZBS_TYPE_COMPANY:
+		case ZBS_TYPE_SEGMENT:
+			return zeroBSCRM_permsCustomers();
 
-		switch ($objTypeID){
+		case ZBS_TYPE_QUOTE:
+		case ZBS_TYPE_QUOTETEMPLATE:
+			return zeroBSCRM_permsQuotes();
 
-			case ZBS_TYPE_CONTACT:
-			case ZBS_TYPE_COMPANY:
+		case ZBS_TYPE_INVOICE:
+			return zeroBSCRM_permsInvoices();
 
-				return zeroBSCRM_permsCustomers();
-				break;
+		case ZBS_TYPE_TRANSACTION:
+			return zeroBSCRM_permsTransactions();
 
-			case ZBS_TYPE_QUOTE:
-			case ZBS_TYPE_QUOTETEMPLATE:
+		case ZBS_TYPE_FORM:
+			return zeroBSCRM_permsForms();
 
-				return zeroBSCRM_permsQuotes();
-				break;
+		case ZBS_TYPE_TASK:
+			return zeroBSCRM_perms_tasks();
 
-			case ZBS_TYPE_INVOICE:
-
-				return zeroBSCRM_permsInvoices();
-				break;
-
-			case ZBS_TYPE_TRANSACTION:
-
-				return zeroBSCRM_permsTransactions();
-				break;
-
-			case ZBS_TYPE_FORM:
-
-				return zeroBSCRM_permsForms();
-				break;
-
-			case ZBS_TYPE_TASK:
-
-				return zeroBSCRM_perms_tasks();
-				break;			
-
-		}
-
-		return false;
 	}
+
+	return false;
+}
 
 /**
  * Determine if a user is allowed to manage contacts.
@@ -725,7 +717,6 @@ function zeroBSCRM_permsCustomers() {
 	    if ($cu->has_cap('admin_zerobs_customers')) return true;
 	    return false;
 	}
-
 
 	// LOGS
 
@@ -952,42 +943,44 @@ function zeroBSCRM_permsCustomers() {
  */
 function jpcrm_can_wp_user_view_object( $wp_user, $obj_id, $obj_type_id ) {
 
-  // unsupported object type
-  if ( !in_array( $obj_type_id, array( ZBS_TYPE_QUOTE, ZBS_TYPE_INVOICE ) ) ) {
-    return false;
-  }
+	// unsupported object type
+	if ( ! in_array( $obj_type_id, array( ZBS_TYPE_QUOTE, ZBS_TYPE_INVOICE ), true ) ) {
+		return false;
+	}
 
-  // retrieve object
-  switch ($obj_type_id) {
-    case ZBS_TYPE_QUOTE:
-      $is_quote_admin = $wp_user->has_cap( 'admin_zerobs_quotes' );
-      $obj_data = zeroBS_getQuote( $obj_id );
-      // draft quote
-      if ( is_array($obj_data) && $obj_data['template'] == -1 && !$is_quote_admin ) {
-        return false;
-      }
-      $assigned_contact_id = zeroBSCRM_quote_getContactAssigned( $obj_id );
-      break;
-    case ZBS_TYPE_INVOICE:
-      $is_invoice_admin = $wp_user->has_cap( 'admin_zerobs_invoices' );
-      $obj_data = zeroBS_getInvoice( $obj_id );
-      // draft invoice
+	global $zbs;
+
+	// retrieve object
+	switch ( $obj_type_id ) {
+		case ZBS_TYPE_QUOTE:
+			$is_quote_admin = $wp_user->has_cap( 'admin_zerobs_quotes' );
+			$obj_data       = zeroBS_getQuote( $obj_id );
+			// draft quote
+			if ( is_array( $obj_data ) && $obj_data['template'] == -1 && ! $is_quote_admin ) { // phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual
+				return false;
+			}
+			$assigned_contact_id = $zbs->DAL->quotes->getQuoteContactID( $obj_id ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+			break;
+		case ZBS_TYPE_INVOICE:
+			$is_invoice_admin = $wp_user->has_cap( 'admin_zerobs_invoices' );
+			$obj_data         = zeroBS_getInvoice( $obj_id );
+			// draft invoice
 			if ( is_array( $obj_data ) && $obj_data['status'] === 'Draft' && ! $is_invoice_admin ) {
 				return false;
 			}
-      $assigned_contact_id = zeroBSCRM_invoice_getContactAssigned( $obj_id );
-      break;
-  }
+			$assigned_contact_id = $zbs->DAL->invoices->getInvoiceContactID( $obj_id ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+			break;
+	}
 
-  // no such object!
-  if ( !$obj_data ) {
-    return false;
-  }
+	// no such object!
+	if ( ! $obj_data ) {
+		return false;
+	}
 
-  // not logged in
-  if ( !$wp_user ) {
-    return false;
-  }
+	// not logged in
+	if ( ! $wp_user ) {
+		return false;
+	}
 
   // grant access if user has full permissions to view object type
   if (
@@ -1091,4 +1084,40 @@ function jpcrm_perms_error() {
 		'bad_perms'
 	);
 	die();
+}
+
+/**
+ * Verifies a given path is within allowed base paths.
+ *
+ * @param string       $path Path to check.
+ * @param array|string $allowed_base_paths Paths to check.
+ *
+ * @return bool True if it's an allowed path, false if not.
+ */
+function jpcrm_is_allowed_path( $path, $allowed_base_paths ) {
+
+	// Convert to array if not already one.
+	if ( ! is_array( $allowed_base_paths ) ) {
+		$allowed_base_paths = array( $allowed_base_paths );
+	}
+
+	$real_path = realpath( $path );
+
+	// Invalid path.
+	if ( ! $real_path ) {
+		return false;
+	}
+
+	foreach ( $allowed_base_paths as $base_path ) {
+		$real_base_path = realpath( $base_path );
+
+		// If file belongs to a valid base_path, all is well.
+		// This base path is sometimes a non-existent path, so we test for its existence as well.
+		if ( $real_base_path && strpos( $real_path, $real_base_path ) === 0 ) {
+			return true;
+		}
+	}
+
+	// doesn't match an allowed base path
+	return false;
 }

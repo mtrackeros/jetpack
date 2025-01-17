@@ -1,21 +1,26 @@
-import { InnerBlocks } from '@wordpress/block-editor';
-import { createBlock, getBlockType } from '@wordpress/blocks';
-import { Path } from '@wordpress/components';
-import { Fragment } from '@wordpress/element';
+import { createBlock } from '@wordpress/blocks';
+import { Path, Icon } from '@wordpress/components';
 import { __, _x } from '@wordpress/i18n';
+import { globe, envelope, mobile } from '@wordpress/icons';
 import { filter, isEmpty, map, startsWith, trim } from 'lodash';
 import JetpackField from './components/jetpack-field';
 import JetpackFieldCheckbox from './components/jetpack-field-checkbox';
 import JetpackFieldConsent from './components/jetpack-field-consent';
+import JetpackDatePicker from './components/jetpack-field-datepicker';
 import JetpackDropdown from './components/jetpack-field-dropdown';
-import JetpackFieldMultiple from './components/jetpack-field-multiple';
-import { JetpackFieldOptionEdit } from './components/jetpack-field-option';
+import JetpackFieldMultipleChoice from './components/jetpack-field-multiple-choice';
+import JetpackFieldMultipleChoiceItem from './components/jetpack-field-multiple-choice/item';
+import JetpackFieldSingleChoice from './components/jetpack-field-single-choice';
+import JetpackFieldSingleChoiceItem from './components/jetpack-field-single-choice/item';
 import JetpackFieldTextarea from './components/jetpack-field-textarea';
 import { getIconColor } from './util/block-icons';
 import { useFormWrapper } from './util/form';
+import getFieldLabel from './util/get-field-label';
+import mergeSettings from './util/merge-settings';
 import renderMaterialIcon from './util/render-material-icon';
 
 const FieldDefaults = {
+	apiVersion: 3,
 	category: 'contact-form',
 	supports: {
 		reusable: false,
@@ -227,24 +232,6 @@ const FieldDefaults = {
 	example: {},
 };
 
-const OptionFieldDefaults = {
-	category: 'contact-form',
-	edit: JetpackFieldOptionEdit,
-	attributes: {
-		label: {
-			type: 'string',
-		},
-		fieldType: {
-			enum: [ 'checkbox', 'radio' ],
-			default: 'checkbox',
-		},
-	},
-	supports: {
-		reusable: false,
-		html: false,
-	},
-};
-
 const multiFieldV1 = fieldType => ( {
 	attributes: {
 		...FieldDefaults.attributes,
@@ -270,10 +257,6 @@ const multiFieldV1 = fieldType => ( {
 	save: () => null,
 } );
 
-const getFieldLabel = ( { attributes, name: blockName } ) => {
-	return null === attributes.label ? getBlockType( blockName ).title : attributes.label;
-};
-
 const editField = type => props => {
 	useFormWrapper( props );
 
@@ -281,34 +264,13 @@ const editField = type => props => {
 		<JetpackField
 			clientId={ props.clientId }
 			type={ type }
-			label={ getFieldLabel( props ) }
+			label={ getFieldLabel( props.attributes, props.name ) }
 			required={ props.attributes.required }
 			requiredText={ props.attributes.requiredText }
 			setAttributes={ props.setAttributes }
 			isSelected={ props.isSelected }
 			defaultValue={ props.attributes.defaultValue }
 			placeholder={ props.attributes.placeholder }
-			id={ props.attributes.id }
-			width={ props.attributes.width }
-			attributes={ props.attributes }
-		/>
-	);
-};
-
-const editMultiField = type => props => {
-	useFormWrapper( props );
-
-	return (
-		<JetpackFieldMultiple
-			className={ props.className }
-			clientId={ props.clientId }
-			label={ getFieldLabel( props ) }
-			required={ props.attributes.required }
-			requiredText={ props.attributes.requiredText }
-			options={ props.attributes.options }
-			setAttributes={ props.setAttributes }
-			type={ type }
-			isSelected={ props.isSelected }
 			id={ props.attributes.id }
 			width={ props.attributes.width }
 			attributes={ props.attributes }
@@ -426,11 +388,12 @@ export const childBlocks = [
 			title: __( 'Email Field', 'jetpack-forms' ),
 			keywords: [ __( 'e-mail', 'jetpack-forms' ), __( 'mail', 'jetpack-forms' ), 'email' ],
 			description: __( 'Collect email addresses from your visitors.', 'jetpack-forms' ),
-			icon: renderMaterialIcon(
-				<Path
-					fill={ getIconColor() }
-					fillRule="evenodd"
-					d="M5.5 8.41665V16C5.5 16.2761 5.72386 16.5 6 16.5H18C18.2761 16.5 18.5 16.2761 18.5 16V8.41633L11.9998 13.9879L5.5 8.41665ZM17.2642 7.5H6.73546L11.9998 12.0123L17.2642 7.5ZM6 6C4.89543 6 4 6.89543 4 8V16C4 17.1046 4.89543 18 6 18H18C19.1046 18 20 17.1046 20 16V8C20 6.89543 19.1046 6 18 6H6Z"
+			icon: (
+				<Icon
+					icon={ envelope }
+					style={ {
+						fill: getIconColor(),
+					} }
 				/>
 			),
 			edit: editField( 'email' ),
@@ -447,28 +410,28 @@ export const childBlocks = [
 		name: 'field-url',
 		settings: {
 			...FieldDefaults,
-			title: __( 'URL Field', 'jetpack-forms' ),
-			keywords: [ 'url', __( 'internet page', 'jetpack-forms' ), 'link' ],
+			title: __( 'Website Field', 'jetpack-forms' ),
+			keywords: [
+				__( 'url', 'jetpack-forms' ),
+				__( 'internet page', 'jetpack-forms' ),
+				__( 'link', 'jetpack-forms' ),
+				__( 'website', 'jetpack-forms' ),
+			],
 			description: __( 'Collect a website address from your site visitors.', 'jetpack-forms' ),
-			icon: renderMaterialIcon(
-				<>
-					<Path
-						fill={ getIconColor() }
-						d="M4.47118 8.5H3V12.9489C3 14.4653 4.14479 15.5 5.94723 15.5C7.74479 15.5 8.88958 14.4653 8.88958 12.9489V8.5H7.4184V12.8059C7.4184 13.688 6.88742 14.265 5.94723 14.265C5.00216 14.265 4.47118 13.688 4.47118 12.8059V8.5Z"
-					/>
-					<Path
-						fill={ getIconColor() }
-						d="M11.5348 9.62534H12.7867C13.5175 9.62534 13.9754 10.0545 13.9754 10.7221C13.9754 11.404 13.5418 11.8188 12.8014 11.8188H11.5348V9.62534ZM11.5348 12.8631H12.7137L14.0241 15.3808H15.6901L14.2092 12.6485C15.0179 12.3386 15.4855 11.5756 15.4855 10.6935C15.4855 9.33447 14.5599 8.5 12.9426 8.5H10.0636V15.3808H11.5348V12.8631Z"
-					/>
-					<Path fill={ getIconColor() } d="M21 14.1887H17.9261V8.5H16.4549V15.3808H21V14.1887Z" />
-				</>
+			icon: (
+				<Icon
+					icon={ globe }
+					style={ {
+						fill: getIconColor(),
+					} }
+				/>
 			),
 			edit: editField( 'url' ),
 			attributes: {
 				...FieldDefaults.attributes,
 				label: {
 					type: 'string',
-					default: 'URL',
+					default: __( 'Website', 'jetpack-forms' ),
 				},
 			},
 		},
@@ -490,12 +453,16 @@ export const childBlocks = [
 					d="M4.5 7H19.5V19C19.5 19.2761 19.2761 19.5 19 19.5H5C4.72386 19.5 4.5 19.2761 4.5 19V7ZM3 5V7V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V7V5C21 3.89543 20.1046 3 19 3H5C3.89543 3 3 3.89543 3 5ZM11 9.25H7V13.25H11V9.25Z"
 				/>
 			),
-			edit: editField( 'text' ),
+			edit: JetpackDatePicker,
 			attributes: {
 				...FieldDefaults.attributes,
 				label: {
 					type: 'string',
 					default: 'Date',
+				},
+				dateFormat: {
+					type: 'string',
+					default: 'yy-mm-dd',
 				},
 			},
 		},
@@ -511,11 +478,12 @@ export const childBlocks = [
 				__( 'Mobile', 'jetpack-forms' ),
 			],
 			description: __( 'Collect phone numbers from site visitors.', 'jetpack-forms' ),
-			icon: renderMaterialIcon(
-				<Path
-					fill={ getIconColor() }
-					fillRule="evenodd"
-					d="M9 5.5H15C15.2761 5.5 15.5 5.72386 15.5 6V18C15.5 18.2761 15.2761 18.5 15 18.5H9C8.72386 18.5 8.5 18.2761 8.5 18V6C8.5 5.72386 8.72386 5.5 9 5.5ZM7 6C7 4.89543 7.89543 4 9 4H15C16.1046 4 17 4.89543 17 6V18C17 19.1046 16.1046 20 15 20H9C7.89543 20 7 19.1046 7 18V6ZM13 16H11V17.5H13V16Z"
+			icon: (
+				<Icon
+					icon={ mobile }
+					style={ {
+						fill: getIconColor(),
+					} }
 				/>
 			),
 			edit: editField( 'tel' ),
@@ -623,105 +591,21 @@ export const childBlocks = [
 		},
 	},
 	{
-		name: 'field-option-checkbox',
-		settings: {
-			...OptionFieldDefaults,
-			parent: [ 'jetpack/field-checkbox-multiple' ],
-			title: __( 'Multiple Choice Option', 'jetpack-forms' ),
-			icon: renderMaterialIcon(
-				<>
-					<Path
-						d="M5.5 10.5H8.5V13.5H5.5V10.5ZM8.5 9H5.5C4.67157 9 4 9.67157 4 10.5V13.5C4 14.3284 4.67157 15 5.5 15H8.5C9.32843 15 10 14.3284 10 13.5V10.5C10 9.67157 9.32843 9 8.5 9ZM12 12.75H20V11.25H12V12.75Z"
-						fill={ getIconColor() }
-					/>
-				</>
-			),
-		},
-	},
-	{
-		name: 'field-option-radio',
-		settings: {
-			...OptionFieldDefaults,
-			parent: [ 'jetpack/field-radio' ],
-			title: __( 'Single Choice Option', 'jetpack-forms' ),
-			icon: renderMaterialIcon(
-				<Path
-					d="M7.5 13.5C6.67157 13.5 6 12.8284 6 12C6 11.1716 6.67157 10.5 7.5 10.5C8.32843 10.5 9 11.1716 9 12C9 12.8284 8.32843 13.5 7.5 13.5ZM4.5 12C4.5 13.6569 5.84315 15 7.5 15C9.15685 15 10.5 13.6569 10.5 12C10.5 10.3431 9.15685 9 7.5 9C5.84315 9 4.5 10.3431 4.5 12ZM12.5 12.75H20.5V11.25H12.5V12.75Z"
-					fill={ getIconColor() }
-				/>
-			),
-		},
-	},
-	{
-		name: 'field-checkbox-multiple',
-		settings: {
-			...FieldDefaults,
-			title: __( 'Multiple Choice (Checkbox)', 'jetpack-forms' ),
-			keywords: [ __( 'Choose Multiple', 'jetpack-forms' ), __( 'Option', 'jetpack-forms' ) ],
-			description: __(
-				'Offer users a list of choices, and allow them to select multiple options.',
-				'jetpack-forms'
-			),
-			icon: renderMaterialIcon(
-				<Path
-					fill={ getIconColor() }
-					d="M7.0812 10.1419L10.6001 5.45005L9.40006 4.55005L6.91891 7.85824L5.53039 6.46972L4.46973 7.53038L7.0812 10.1419ZM12 8.5H20V7H12V8.5ZM12 17H20V15.5H12V17ZM8.5 14.5H5.5V17.5H8.5V14.5ZM5.5 13H8.5C9.32843 13 10 13.6716 10 14.5V17.5C10 18.3284 9.32843 19 8.5 19H5.5C4.67157 19 4 18.3284 4 17.5V14.5C4 13.6716 4.67157 13 5.5 13Z"
-				/>
-			),
-			edit: editMultiField( 'checkbox' ),
-			save: () => <InnerBlocks.Content />,
-			attributes: {
-				...FieldDefaults.attributes,
-				label: {
-					type: 'string',
-					default: 'Choose several options',
-				},
-			},
-			styles: [
-				{ name: 'list', label: 'List', isDefault: true },
-				{ name: 'button', label: 'Button' },
-			],
-			deprecated: [ multiFieldV1( 'checkbox' ) ],
-		},
-	},
-	{
-		name: 'field-radio',
-		settings: {
-			...FieldDefaults,
-			title: __( 'Single Choice (Radio)', 'jetpack-forms' ),
-			keywords: [
-				__( 'Choose', 'jetpack-forms' ),
-				__( 'Select', 'jetpack-forms' ),
-				__( 'Option', 'jetpack-forms' ),
-			],
-			description: __(
-				'Offer users a list of choices, and allow them to select a single option.',
-				'jetpack-forms'
-			),
-			icon: renderMaterialIcon(
-				<Fragment>
-					<Path
-						fill={ getIconColor() }
-						d="M4 7.75C4 9.40685 5.34315 10.75 7 10.75C8.65685 10.75 10 9.40685 10 7.75C10 6.09315 8.65685 4.75 7 4.75C5.34315 4.75 4 6.09315 4 7.75ZM20 8.5H12V7H20V8.5ZM20 17H12V15.5H20V17ZM7 17.75C6.17157 17.75 5.5 17.0784 5.5 16.25C5.5 15.4216 6.17157 14.75 7 14.75C7.82843 14.75 8.5 15.4216 8.5 16.25C8.5 17.0784 7.82843 17.75 7 17.75ZM4 16.25C4 17.9069 5.34315 19.25 7 19.25C8.65685 19.25 10 17.9069 10 16.25C10 14.5931 8.65685 13.25 7 13.25C5.34315 13.25 4 14.5931 4 16.25Z"
-					/>
-				</Fragment>
-			),
-			edit: editMultiField( 'radio' ),
-			save: () => <InnerBlocks.Content />,
-			attributes: {
-				...FieldDefaults.attributes,
-				label: {
-					type: 'string',
-					default: 'Choose one option',
-				},
-			},
-			styles: [
-				{ name: 'list', label: 'List', isDefault: true },
-				{ name: 'button', label: 'Button' },
-			],
+		name: JetpackFieldSingleChoice.name,
+		settings: mergeSettings( FieldDefaults, {
+			...JetpackFieldSingleChoice.settings,
 			deprecated: [ multiFieldV1( 'radio' ) ],
-		},
+		} ),
 	},
+	JetpackFieldSingleChoiceItem,
+	{
+		name: JetpackFieldMultipleChoice.name,
+		settings: mergeSettings( FieldDefaults, {
+			...JetpackFieldMultipleChoice.settings,
+			deprecated: [ multiFieldV1( 'checkbox' ) ],
+		} ),
+	},
+	JetpackFieldMultipleChoiceItem,
 	{
 		name: 'field-select',
 		settings: {

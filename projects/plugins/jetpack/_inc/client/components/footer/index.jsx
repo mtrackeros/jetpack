@@ -1,17 +1,16 @@
 import { getRedirectUrl, JetpackFooter, ThemeProvider } from '@automattic/jetpack-components';
 import { __, _x, sprintf } from '@wordpress/i18n';
-import classNames from 'classnames';
-import DevCard from 'components/dev-card';
-import analytics from 'lib/analytics';
+import clsx from 'clsx';
 import React from 'react';
 import { connect } from 'react-redux';
+import DevCard from 'components/dev-card';
+import analytics from 'lib/analytics';
 import { isInIdentityCrisis, getSiteConnectionStatus } from 'state/connection';
 import { canDisplayDevCard, enableDevCard, resetOptions } from 'state/dev-version';
 import {
 	isDevVersion as _isDevVersion,
 	getCurrentVersion,
 	userCanManageOptions,
-	getSiteAdminUrl,
 	isAtomicPlatform,
 } from 'state/initial-state';
 import onKeyDownCallback from 'utils/onkeydown-callback';
@@ -28,6 +27,7 @@ export class Footer extends React.Component {
 	static displayName = 'Footer';
 
 	resetOnClick = () => {
+		// eslint-disable-next-line no-alert -- @todo Is there a better dialog we could use?
 		if ( window.confirm( __( 'This will reset all Jetpack options, are you sure?', 'jetpack' ) ) ) {
 			this.props.resetOptions();
 		}
@@ -77,7 +77,7 @@ export class Footer extends React.Component {
 	};
 
 	render() {
-		const classes = classNames( this.props.className, 'jp-footer' );
+		const classes = clsx( this.props.className, 'jp-footer' );
 		const version = this.props.currentVersion;
 		const menu = [];
 
@@ -141,12 +141,11 @@ export class Footer extends React.Component {
 
 		return (
 			<ThemeProvider>
-				<div className={ classNames( 'jp-footer', classes ) }>
+				<div className={ clsx( 'jp-footer', classes ) }>
 					<div className="jp-footer__container">
 						<JetpackFooter
 							menu={ menu }
 							moduleNameHref={ getRedirectUrl( 'jetpack' ) }
-							siteAdminUrl={ this.props.siteAdminUrl }
 							onAboutClick={ this.trackAboutClick }
 							onPrivacyClick={ this.trackPrivacyClick }
 							onTermsClick={ this.trackTermsClick }
@@ -167,7 +166,6 @@ export default connect(
 			isAtomicPlatform: isAtomicPlatform( state ),
 			isDevVersion: _isDevVersion( state ),
 			isInIdentityCrisis: isInIdentityCrisis( state ),
-			siteAdminUrl: getSiteAdminUrl( state ),
 			siteConnectionStatus: getSiteConnectionStatus( state ),
 			userCanManageOptions: userCanManageOptions( state ),
 		};

@@ -26,14 +26,14 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	/**
 	 * The parent form.
 	 *
-	 * @var Grunion_Contact_Form
+	 * @var Contact_Form
 	 */
 	public $form;
 
 	/**
 	 * Default or POSTed value.
 	 *
-	 * @var string
+	 * @var string|string[]
 	 */
 	public $value;
 
@@ -75,9 +75,9 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	/**
 	 * Constructor function.
 	 *
-	 * @param array                $attributes An associative array of shortcode attributes.  @see shortcode_atts().
-	 * @param null|string          $content Null for selfclosing shortcodes.  The inner content otherwise.
-	 * @param Grunion_Contact_Form $form The parent form.
+	 * @param array        $attributes An associative array of shortcode attributes.  @see shortcode_atts().
+	 * @param null|string  $content Null for selfclosing shortcodes.  The inner content otherwise.
+	 * @param Contact_Form $form The parent form.
 	 */
 	public function __construct( $attributes, $content = null, $form = null ) {
 		$attributes = shortcode_atts(
@@ -101,6 +101,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 				'class'                  => null,
 				'width'                  => null,
 				'consenttype'            => null,
+				'dateformat'             => null,
 				'implicitconsentmessage' => null,
 				'explicitconsentmessage' => null,
 				'borderradius'           => null,
@@ -226,6 +227,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 		switch ( $field_type ) {
 			case 'url':
 				if ( ! is_string( $field_value ) || empty( $field_value ) || ! preg_match(
+					// Changes to this regex should be synced with the regex in the render_url_field method of this class as both validate the same input. Note that this regex is in PCRE format.
 					'%^(?:(?:https?|ftp)://)?(?:\S+(?::\S*)?@|\d{1,3}(?:\.\d{1,3}){3}|(?:(?:[a-z\d\x{00a1}-\x{ffff}]+-?)*[a-z\d\x{00a1}-\x{ffff}]+)(?:\.(?:[a-z\d\x{00a1}-\x{ffff}]+-?)*[a-z\d\x{00a1}-\x{ffff}]+)*(?:\.[a-z\x{00a1}-\x{ffff}]{2,6}))(?::\d+)?(?:[^\s]*)?$%iu',
 					$field_value
 				) ) {
@@ -342,7 +344,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 			$this->label_styles .= 'line-height: ' . (int) $this->get_attribute( 'labellineheight' ) . ';';
 		}
 
-		if ( ! empty( $field_width ) ) {
+		if ( ! empty( $field_width ) && ! $this->has_inset_label() ) {
 			$class .= ' grunion-field-width-' . $field_width;
 		}
 
@@ -453,7 +455,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 				class='grunion-field-label{$type_class}" . ( $this->is_error() ? ' form-error' : '' ) . "'"
 				. $extra_attrs_string
 				. '>'
-				. esc_html( $label )
+				. wp_kses_post( $label )
 				. ( $required ? '<span class="grunion-label-required" aria-hidden="true">' . $required_field_text . '</span>' : '' )
 				. "</label>\n";
 	}
@@ -506,6 +508,10 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	 * @return string HTML
 	 */
 	public function render_input_field( $type, $id, $value, $class, $placeholder, $required, $extra_attrs = array() ) {
+		if ( ! is_string( $value ) ) {
+			$value = '';
+		}
+
 		$extra_attrs_string = '';
 
 		if ( ! empty( $this->field_styles ) ) {
@@ -585,7 +591,8 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 			'title'              => $custom_validation_message,
 			'oninvalid'          => 'setCustomValidity("' . $custom_validation_message . '")',
 			'oninput'            => 'setCustomValidity("")',
-			'pattern'            => '(([:\/a-zA-Z0-9_\-]+)?(\.[a-zA-Z0-9_\-\/]+)+)',
+			// Changes to this regex should be synced with the regex in the URL validation of the validate method of this class as both validate the same input. Note that this regex is in ECMAScript (JS) format.
+			'pattern'            => '(?:(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Tt][Pp]):\/\/)?(?:\S+(?::\S*)?@|\d{1,3}(?:\.\d{1,3}){3}|(?:(?:[a-zA-Z\d\u00a1-\uffff]+-?)*[a-zA-Z\d\u00a1-\uffff]+)(?:\.(?:[a-zA-Z\d\u00a1-\uffff]+-?)*[a-zA-Z\d\u00a1-\uffff]+)*(?:\.[a-zA-Z\u00a1-\uffff]{2,6}))(?::\d+)?(?:[^\s]*)?',
 			'data-type-override' => 'url',
 		);
 
@@ -608,6 +615,10 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	 * @return string HTML
 	 */
 	public function render_textarea_field( $id, $label, $value, $class, $required, $required_field_text, $placeholder ) {
+		if ( ! is_string( $value ) ) {
+			$value = '';
+		}
+
 		$field  = $this->render_label( 'textarea', 'contact-form-comment-' . $id, $label, $required, $required_field_text );
 		$field .= "<textarea
 		                style='" . $this->field_styles . "'
@@ -635,7 +646,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	 * @return string HTML
 	 */
 	public function render_radio_field( $id, $label, $value, $class, $required, $required_field_text ) {
-		$field  = '<fieldset class="grunion-radio-options">';
+		$field  = '<fieldset id="' . esc_attr( "$id-label" ) . '" class="grunion-radio-options">';
 		$field .= $this->render_legend_as_label( '', $id, $label, $required, $required_field_text );
 
 		$field_style = 'style="' . $this->option_styles . '"';
@@ -729,7 +740,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 		// checkbox is checked. Unlike radio buttons, for which the required attribute is satisfied if
 		// any of the radio buttons in the group is selected, adding a required attribute directly to
 		// a checkbox means that this specific checkbox must be checked.
-		$field  = '<fieldset class="grunion-checkbox-multiple-options"' . ( $required ? 'data-required' : '' ) . '>';
+		$field  = '<fieldset id="' . esc_attr( "$id-label" ) . '" class="grunion-checkbox-multiple-options"' . ( $required ? 'data-required' : '' ) . '>';
 		$field .= $this->render_legend_as_label( '', $id, $label, $required, $required_field_text );
 
 		$field_style = 'style="' . $this->option_styles . '"';
@@ -773,12 +784,9 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	 * @return string HTML
 	 */
 	public function render_select_field( $id, $label, $value, $class, $required, $required_field_text ) {
-		$label_ns     = 'contact-form-label';
-		$label_id_key = "$label_ns-id";
-		$label_id_val = "$label_ns-$id";
-
-		$field  = $this->render_label( 'select', $id, $label, $required, $required_field_text, array( 'id' => $label_id_val ) );
-		$field .= "\t<select name='" . esc_attr( $id ) . "' id='" . esc_attr( $id ) . "' " . $class . ( $required ? "required aria-required='true'" : '' ) . "data-$label_id_key='" . esc_attr( $label_id_val ) . "'>\n";
+		$field  = $this->render_label( 'select', $id, $label, $required, $required_field_text );
+		$field .= "<div class='contact-form__select-wrapper'>";
+		$field .= "\t<select name='" . esc_attr( $id ) . "' id='" . esc_attr( $id ) . "' " . $class . ( $required ? "required aria-required='true'" : '' ) . ">\n";
 
 		if ( $this->get_attribute( 'togglelabel' ) ) {
 			$field .= "\t\t<option value=''>" . $this->get_attribute( 'togglelabel' ) . "</option>\n";
@@ -795,23 +803,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 			}
 		}
 		$field .= "\t</select>\n";
-
-		wp_enqueue_style(
-			'jquery-ui-selectmenu',
-			plugins_url( 'css/jquery-ui-selectmenu.css', __FILE__ ),
-			array(),
-			'1.13.2'
-		);
-
-		wp_enqueue_script( 'jquery-ui-selectmenu' );
-
-		wp_enqueue_script(
-			'contact-form-dropdown',
-			plugins_url( 'js/dropdown.js', __FILE__ ),
-			array( 'jquery', 'jquery-ui-selectmenu' ),
-			\JETPACK__VERSION,
-			true
-		);
+		$field .= "</div>\n";
 
 		return $field;
 	}
@@ -831,8 +823,29 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	 */
 	public function render_date_field( $id, $label, $value, $class, $required, $required_field_text, $placeholder ) {
 
+		// WARNING: sync data with DATE_FORMATS in jetpack-field-datepicker.js
+		$formats = array(
+			'mm/dd/yy' => array(
+				/* translators: date format. DD is the day of the month, MM the month, and YYYY the year (e.g., 12/31/2023). */
+				'label' => __( 'MM/DD/YYYY', 'jetpack-forms' ),
+			),
+			'dd/mm/yy' => array(
+				/* translators: date format. DD is the day of the month, MM the month, and YYYY the year (e.g., 31/12/2023). */
+				'label' => __( 'DD/MM/YYYY', 'jetpack-forms' ),
+			),
+			'yy-mm-dd' => array(
+				/* translators: date format. DD is the day of the month, MM the month, and YYYY the year (e.g., 2023-12-31). */
+				'label' => __( 'YYYY-MM-DD', 'jetpack-forms' ),
+			),
+		);
+
+		$date_format = $this->get_attribute( 'dateformat' );
+		$date_format = isset( $date_format ) && ! empty( $date_format ) ? $date_format : 'yy-mm-dd';
+		$label       = isset( $formats[ $date_format ] ) ? $label . ' (' . $formats[ $date_format ]['label'] . ')' : $label;
+		$extra_attrs = array( 'data-format' => $date_format );
+
 		$field  = $this->render_label( 'date', $id, $label, $required, $required_field_text );
-		$field .= $this->render_input_field( 'text', $id, $value, $class, $placeholder, $required );
+		$field .= $this->render_input_field( 'text', $id, $value, $class, $placeholder, $required, $extra_attrs );
 
 		/* For AMP requests, use amp-date-picker element: https://amp.dev/documentation/components/amp-date-picker */
 		if ( class_exists( 'Jetpack_AMP_Support' ) && \Jetpack_AMP_Support::is_amp_request() ) {
@@ -844,17 +857,18 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 			);
 		}
 
-		wp_enqueue_script(
+		Assets::register_script(
 			'grunion-frontend',
-			Assets::get_file_url_for_environment(
-				'_inc/build/contact-form/js/grunion-frontend.min.js',
-				'modules/contact-form/js/grunion-frontend.js'
-			),
-			array( 'jquery', 'jquery-ui-datepicker' ),
-			\JETPACK__VERSION,
-			false
+			'../../dist/contact-form/js/grunion-frontend.js',
+			__FILE__,
+			array(
+				'enqueue'      => true,
+				'dependencies' => array( 'jquery', 'jquery-ui-datepicker' ),
+				'version'      => \JETPACK__VERSION,
+			)
 		);
-		wp_enqueue_style( 'jp-jquery-ui-datepicker', plugins_url( 'css/jquery-ui-datepicker.css', __FILE__ ), array( 'dashicons' ), '1.0' );
+
+		wp_enqueue_style( 'jp-jquery-ui-datepicker', plugins_url( '../../dist/contact-form/css/jquery-ui-datepicker.css', __FILE__ ), array( 'dashicons' ), '1.0' );
 
 		// Using Core's built-in datepicker localization routine
 		wp_localize_jquery_ui_datepicker();
@@ -969,10 +983,6 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 	public function render_field( $type, $id, $label, $value, $class, $placeholder, $required, $required_field_text ) {
 		$class .= ' grunion-field';
 
-		if ( $type === 'select' ) {
-			$class .= ' contact-form-dropdown';
-		}
-
 		$form_style = $this->get_form_style();
 		if ( ! empty( $form_style ) && $form_style !== 'default' ) {
 			if ( empty( $placeholder ) ) {
@@ -985,12 +995,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 		$field_placeholder = ( ! empty( $placeholder ) ) ? "placeholder='" . esc_attr( $placeholder ) . "'" : '';
 		$field_class       = "class='" . trim( esc_attr( $type ) . ' ' . esc_attr( $class ) ) . "' ";
 		$wrap_classes      = empty( $class ) ? '' : implode( '-wrap ', array_filter( explode( ' ', $class ) ) ) . '-wrap'; // this adds
-		// Label is displayed inside the input instead of above it.
-		$has_inset_label = in_array( $form_style, array( 'outlined', 'animated' ), true );
-
-		if ( $type === 'select' ) {
-			$wrap_classes .= ' ui-front';
-		}
+		$has_inset_label   = $this->has_inset_label();
 
 		if ( empty( $label ) ) {
 			$wrap_classes .= ' no-label';
@@ -1007,7 +1012,7 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 		 *
 		 * @param string $var Required field text. Default is "(required)".
 		 */
-		$required_field_text = esc_html( apply_filters( 'jetpack_required_field_text', $required_field_text ) );
+		$required_field_text = wp_kses_post( apply_filters( 'jetpack_required_field_text', $required_field_text ) );
 
 		$block_style = 'style="' . $this->block_styles . '"';
 
@@ -1015,7 +1020,14 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 
 		// Fields with an inset label need an extra wrapper to show the error message below the input.
 		if ( $has_inset_label ) {
-			$field .= "\n<div class='contact-form__inset-label-wrap'>\n";
+			$field_width       = $this->get_attribute( 'width' );
+			$inset_label_class = array( 'contact-form__inset-label-wrap' );
+
+			if ( ! empty( $field_width ) ) {
+				array_push( $inset_label_class, 'grunion-field-width-' . $field_width . '-wrap' );
+			}
+
+			$field .= "\n<div class='" . implode( ' ', $inset_label_class ) . "'>\n";
 		}
 
 		$field .= "\n<div {$block_style} {$shell_field_class} >\n"; // new in Jetpack 6.8.0
@@ -1124,5 +1136,16 @@ class Contact_Form_Field extends Contact_Form_Shortcode {
 		$class_name = $this->form->get_attribute( 'className' );
 		preg_match( '/is-style-([^\s]+)/i', $class_name, $matches );
 		return count( $matches ) >= 2 ? $matches[1] : null;
+	}
+
+	/**
+	 * Checks if the field has an inset label, i.e., a label displayed inside the field instead of above.
+	 *
+	 * @return boolean
+	 */
+	private function has_inset_label() {
+		$form_style = $this->get_form_style();
+
+		return in_array( $form_style, array( 'outlined', 'animated' ), true );
 	}
 }
